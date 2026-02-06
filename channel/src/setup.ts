@@ -18,7 +18,7 @@ import {
   depositAndCreateChannel,
   BASE_SEPOLIA_CHAIN_ID,
   ETH_ADDRESS,
-  YTEST_USD_ADDRESS,
+  USDC_ADDRESS,
   type ConfigResponse,
 } from './onchain.ts'
 
@@ -27,13 +27,13 @@ const WALLET_NAMES = ['A', 'B', 'C', 'D', 'F'] as const
 const APP_NAME = 'ghost-matcher'
 
 // Per-wallet deposits for ETH/USD swap simulation
-// Sellers (A,B,C) deposit ETH, Buyers (D,F) deposit ytest.usd
+// Sellers (A,B,C) deposit ETH, Buyers (D,F) deposit USDC
 const WALLET_DEPOSITS: Record<string, { token: Address; amount: bigint }> = {
   A: { token: ETH_ADDRESS, amount: BigInt('3000000000000000') },   // 0.003 ETH
   B: { token: ETH_ADDRESS, amount: BigInt('4000000000000000') },   // 0.004 ETH
   C: { token: ETH_ADDRESS, amount: BigInt('3000000000000000') },   // 0.003 ETH
-  D: { token: YTEST_USD_ADDRESS, amount: BigInt('4000000') },      // 4 ytest.usd
-  F: { token: YTEST_USD_ADDRESS, amount: BigInt('1000000') },      // 1 ytest.usd
+  D: { token: USDC_ADDRESS, amount: BigInt('4000000') },           // 4 USDC
+  F: { token: USDC_ADDRESS, amount: BigInt('1000000') },           // 1 USDC
 }
 
 interface WalletData {
@@ -249,7 +249,7 @@ async function main() {
   // 3. Setup each wallet (each gets own connection)
   console.log('\n=== Setting up wallets ===')
   console.log(`  ETH sellers: A, B, C`)
-  console.log(`  USD buyers: D, F (using ytest.usd)`)
+  console.log(`  USD buyers: D, F (using USDC)`)
 
   for (const wallet of wallets) {
     const deposit = WALLET_DEPOSITS[wallet.name]

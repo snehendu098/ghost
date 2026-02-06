@@ -7,7 +7,8 @@
     "faucet": "bun src/faucet.ts",
     "deposit-eth": "bun src/deposit-eth.ts",
     "setup": "bun src/setup.ts",
-    "balances": "bun src/balances.ts",
+    "balances": "bun src/utils/balances.ts",
+    "close-channels": "bun src/utils/close-channels.ts",
     "test": "bun test"
   },
   "type": "module",

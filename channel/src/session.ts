@@ -3,11 +3,9 @@ import type { RPCAppSessionAllocation } from '@erc7824/nitrolite'
 import type { ClearNodeClient } from './clearnode.ts'
 import type { Match } from './types.ts'
 
-// Asset identifiers
-// Note: Sandbox faucet only provides ytest.usd, so we use it for both sides
-// In production, use different assets (e.g., 'eth:8453' and 'usdc')
-const SELL_ASSET = 'ytest.usd'  // Seller's asset (simulating ETH)
-const BUY_ASSET = 'ytest.usd'   // Buyer's asset (USD)
+// Asset identifiers — sellers offer ETH, buyers offer USDC
+const SELL_ASSET = 'eth'
+const BUY_ASSET = 'usdc'
 
 export interface SwapSession {
   id: string
@@ -52,8 +50,8 @@ export class SessionManager {
 
     // Initial allocations: seller has ETH, buyer has USDC
     const initialAllocations: RPCAppSessionAllocation[] = [
-      { asset: ETH_ASSET, amount: session.ethAmount, participant: sellerAddr },
-      { asset: USDC_ASSET, amount: session.usdcAmount, participant: buyerAddr },
+      { asset: SELL_ASSET, amount: session.ethAmount, participant: sellerAddr },
+      { asset: BUY_ASSET, amount: session.usdcAmount, participant: buyerAddr },
     ]
 
     // Seller creates the app session
@@ -82,8 +80,8 @@ export class SessionManager {
 
     // After swap: buyer has ETH, seller has USDC
     const swappedAllocations: RPCAppSessionAllocation[] = [
-      { asset: ETH_ASSET, amount: session.ethAmount, participant: buyerAddr },
-      { asset: USDC_ASSET, amount: session.usdcAmount, participant: sellerAddr },
+      { asset: SELL_ASSET, amount: session.ethAmount, participant: buyerAddr },
+      { asset: BUY_ASSET, amount: session.usdcAmount, participant: sellerAddr },
     ]
 
     // Both parties sign the new state
@@ -112,8 +110,8 @@ export class SessionManager {
 
     // Final allocations after swap
     const finalAllocations: RPCAppSessionAllocation[] = [
-      { asset: ETH_ASSET, amount: session.ethAmount, participant: buyerAddr },
-      { asset: USDC_ASSET, amount: session.usdcAmount, participant: sellerAddr },
+      { asset: SELL_ASSET, amount: session.ethAmount, participant: buyerAddr },
+      { asset: BUY_ASSET, amount: session.usdcAmount, participant: sellerAddr },
     ]
 
     await sellerClient.closeAppSession(session.appSessionId, finalAllocations)

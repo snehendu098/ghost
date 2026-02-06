@@ -14,7 +14,7 @@ import {
 const RPC_URL = process.env.RPC_URL || 'https://sepolia.base.org'
 
 // Base Sepolia
-export const YTEST_USD_ADDRESS = '0xDB9F293e3898c9E5536A3be1b0C56c89d2b32DEb' as Address
+export const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 export const BASE_SEPOLIA_CHAIN_ID = 84532
 
@@ -27,10 +27,10 @@ export interface CreateChannelResponse {
     challenge: bigint
     nonce: bigint
   }
-  initial_state: {
+  state: {
     intent: number
     version: bigint
-    data: Hex
+    state_data: Hex
     allocations: { destination: Address; token: Address; amount: bigint }[]
   }
 }
@@ -94,10 +94,10 @@ export function buildCreateChannelParams(
   }
 
   const unsignedInitialState: UnsignedState = {
-    intent: response.initial_state.intent as StateIntent,
-    version: BigInt(response.initial_state.version),
-    data: response.initial_state.data,
-    allocations: response.initial_state.allocations.map((a) => ({
+    intent: response.state.intent as StateIntent,
+    version: BigInt(response.state.version),
+    data: response.state.state_data,
+    allocations: response.state.allocations.map((a) => ({
       destination: a.destination,
       token: a.token,
       amount: BigInt(a.amount),

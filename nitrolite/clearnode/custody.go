@@ -45,6 +45,7 @@ type Custody struct {
 	blockStep          uint64
 	wsNotifier         *WSNotifier
 	logger             Logger
+	pendingDeposits    []*nitrolite.CustodyDeposited
 }
 
 // NewCustody initializes the Ethereum client and custody contract wrapper.
@@ -162,6 +163,13 @@ func (c *Custody) handleBlockChainEvent(ctx context.Context, l types.Log) {
 			return
 		}
 		c.handleCreated(logger, ev)
+	case custodyAbi.Events["Deposited"].ID:
+		ev, err := c.custody.ParseDeposited(l)
+		if err != nil {
+			logger.Warn("error parsing event", "error", err)
+			return
+		}
+		c.handleDeposited(logger, ev)
 	case custodyAbi.Events["Joined"].ID:
 		return
 	case custodyAbi.Events["Challenged"].ID:
@@ -317,8 +325,101 @@ func (c *Custody) handleCreated(logger Logger, ev *nitrolite.CustodyCreated) {
 		return
 	}
 
+	// Drain any pending deposits that arrived before channel creation (same tx).
+	var remaining []*nitrolite.CustodyDeposited
+	for _, dep := range c.pendingDeposits {
+		if dep.Wallet.Hex() == wallet && dep.Token.Hex() == tokenAddress {
+			if err := c.db.Transaction(func(tx *gorm.DB) error {
+				channel, err := CheckExistingChannels(tx, wallet, tokenAddress, c.chainID)
+				if err != nil {
+					return err
+				}
+				if channel == nil {
+					return fmt.Errorf("channel not found after creation for wallet %s token %s", wallet, tokenAddress)
+				}
+				return c.applyDeposit(tx, logger, channel, dep)
+			}); err != nil {
+				logger.Error("failed to apply buffered deposit", "wallet", wallet, "token", tokenAddress, "error", err)
+			} else {
+				logger.Info("applied buffered deposit", "wallet", wallet, "token", tokenAddress, "amount", dep.Amount)
+			}
+		} else {
+			remaining = append(remaining, dep)
+		}
+	}
+	c.pendingDeposits = remaining
+
 	c.wsNotifier.Notify(NewChannelNotification(ch))
 	c.wsNotifier.Notify(NewBalanceNotification(ch.Wallet, c.db))
+}
+
+// applyDeposit credits a deposit to an existing channel's ledger.
+// Note: channel.RawAmount is NOT updated here — it tracks the on-chain channel
+// state allocation, which is unchanged by deposits to the custody pool.
+func (c *Custody) applyDeposit(tx *gorm.DB, logger Logger, channel *Channel, ev *nitrolite.CustodyDeposited) error {
+	tokenAddress := ev.Token.Hex()
+	rawAmount := ev.Amount
+
+	asset, ok := c.assetsCfg.GetAssetTokenByAddressAndChainID(tokenAddress, c.chainID)
+	if !ok {
+		return fmt.Errorf("asset with address %s on chain ID %d not found", tokenAddress, c.chainID)
+	}
+	amount := rawToDecimal(rawAmount, asset.Token.Decimals)
+
+	walletAddress := ev.Wallet
+	channelAccountID := NewAccountID(channel.ChannelID)
+	walletAccountID := NewAccountID(walletAddress.Hex())
+
+	ledger := GetWalletLedger(tx, walletAddress)
+	if err := ledger.Record(channelAccountID, asset.Symbol, amount, nil); err != nil {
+		return err
+	}
+	if err := ledger.Record(channelAccountID, asset.Symbol, amount.Neg(), nil); err != nil {
+		return err
+	}
+	ledger = GetWalletLedger(tx, walletAddress)
+	if err := ledger.Record(walletAccountID, asset.Symbol, amount, nil); err != nil {
+		return err
+	}
+
+	_, err := RecordLedgerTransaction(tx, TransactionTypeDeposit, channelAccountID, walletAccountID, asset.Symbol, amount)
+	return err
+}
+
+func (c *Custody) handleDeposited(logger Logger, ev *nitrolite.CustodyDeposited) {
+	logger = logger.With("event", "Deposited")
+	wallet := ev.Wallet.Hex()
+	tokenAddress := ev.Token.Hex()
+	rawAmount := ev.Amount
+
+	err := c.db.Transaction(func(tx *gorm.DB) error {
+		if err := c.saveContractEvent(tx, "deposited", *ev, ev.Raw); err != nil {
+			return err
+		}
+
+		channel, err := CheckExistingChannels(tx, wallet, tokenAddress, c.chainID)
+		if err != nil {
+			return err
+		}
+		if channel == nil {
+			// Channel not created yet (e.g. depositAndCreateChannel emits Deposited before Created).
+			// Buffer in memory — handleCreated will drain it.
+			c.pendingDeposits = append(c.pendingDeposits, ev)
+			logger.Info("buffered pending deposit (no channel yet)", "wallet", wallet, "token", tokenAddress, "amount", rawAmount)
+			return nil
+		}
+
+		return c.applyDeposit(tx, logger, channel, ev)
+	})
+
+	if errors.Is(err, ErrCustodyEventAlreadyProcessed) {
+		return
+	} else if err != nil {
+		logger.Error("error handling deposited event", "error", err)
+		return
+	}
+
+	logger.Info("handled deposited event", "wallet", wallet, "token", tokenAddress, "amount", rawAmount)
 }
 
 func (c *Custody) handleChallenged(logger Logger, ev *nitrolite.CustodyChallenged) {

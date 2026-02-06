@@ -3,7 +3,7 @@ import { baseSepolia } from 'viem/chains'
 import { Wallet } from 'ethers'
 
 const RPC_URL = process.env.RPC_URL || 'https://sepolia.base.org'
-const YTEST_USD_ADDRESS = '0xDB9F293e3898c9E5536A3be1b0C56c89d2b32DEb' as Address
+const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address
 const WALLET_NAMES = ['A', 'B', 'C', 'D', 'F'] as const
 
 const ERC20_ABI = [
@@ -34,10 +34,10 @@ async function main() {
     const wallet = new Wallet(key)
     const address = wallet.address as Address
 
-    const [ethBalance, ytestBalance] = await Promise.all([
+    const [ethBalance, usdcBalance] = await Promise.all([
       client.getBalance({ address }),
       client.readContract({
-        address: YTEST_USD_ADDRESS,
+        address: USDC_ADDRESS,
         abi: ERC20_ABI,
         functionName: 'balanceOf',
         args: [address],
@@ -45,8 +45,8 @@ async function main() {
     ])
 
     console.log(`${name} (${address}):`)
-    console.log(`  ETH:       ${formatEther(ethBalance)}`)
-    console.log(`  ytest.usd: ${formatUnits(ytestBalance, 6)}`)
+    console.log(`  ETH:  ${formatEther(ethBalance)}`)
+    console.log(`  USDC: ${formatUnits(usdcBalance, 6)}`)
     console.log()
   }
 }
