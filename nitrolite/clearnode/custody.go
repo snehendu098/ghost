@@ -326,6 +326,7 @@ func (c *Custody) handleCreated(logger Logger, ev *nitrolite.CustodyCreated) {
 	}
 
 	// Drain any pending deposits that arrived before channel creation (same tx).
+	// wallet and tokenAddress already declared above in this function scope.
 	var remaining []*nitrolite.CustodyDeposited
 	for _, dep := range c.pendingDeposits {
 		if dep.Wallet.Hex() == wallet && dep.Token.Hex() == tokenAddress {

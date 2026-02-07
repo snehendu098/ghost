@@ -159,8 +159,20 @@ func (s *ChannelService) RequestResize(params *ResizeChannelParams, rpcSigners m
 		rawBalance := balance.Shift(int32(asset.Token.Decimals))
 		newChannelRawAmount := channel.RawAmount.Add(*params.AllocateAmount)
 
+		brokerFunded := false
 		if rawBalance.Cmp(newChannelRawAmount) < 0 {
-			return RPCErrorf("insufficient unified balance for channel %s: required %s, available %s", channel.ChannelID, newChannelRawAmount.String(), rawBalance.String())
+			// User balance insufficient — check if broker can fund
+			brokerLedger := GetWalletLedger(tx, s.signer.GetAddress())
+			brokerBalance, brokerErr := brokerLedger.Balance(NewAccountID(s.signer.GetAddress().Hex()), asset.Symbol)
+			if brokerErr != nil {
+				return RPCErrorf("insufficient unified balance for channel %s: required %s, available %s", channel.ChannelID, newChannelRawAmount.String(), rawBalance.String())
+			}
+			brokerRawBalance := brokerBalance.Shift(int32(asset.Token.Decimals))
+			if brokerRawBalance.Cmp(newChannelRawAmount) < 0 {
+				return RPCErrorf("insufficient balance for channel %s: required %s, user %s, broker %s", channel.ChannelID, newChannelRawAmount.String(), rawBalance.String(), brokerRawBalance.String())
+			}
+			brokerFunded = true
+			logger.Info("using broker-funded resize", "channel", channel.ChannelID, "amount", newChannelRawAmount.String())
 		}
 		newChannelRawAmount = newChannelRawAmount.Add(*params.ResizeAmount)
 		if newChannelRawAmount.Cmp(decimal.Zero) < 0 {
@@ -188,17 +200,32 @@ func (s *ChannelService) RequestResize(params *ResizeChannelParams, rpcSigners m
 			}
 		}
 
-		allocations = []nitrolite.Allocation{
-			{
-				Destination: common.HexToAddress(params.FundsDestination),
-				Token:       common.HexToAddress(channel.Token),
-				Amount:      newChannelRawAmount.BigInt(),
-			},
-			{
-				Destination: s.signer.GetAddress(),
-				Token:       common.HexToAddress(channel.Token),
-				Amount:      big.NewInt(0),
-			},
+		if brokerFunded {
+			allocations = []nitrolite.Allocation{
+				{
+					Destination: common.HexToAddress(params.FundsDestination),
+					Token:       common.HexToAddress(channel.Token),
+					Amount:      big.NewInt(0),
+				},
+				{
+					Destination: s.signer.GetAddress(),
+					Token:       common.HexToAddress(channel.Token),
+					Amount:      newChannelRawAmount.BigInt(),
+				},
+			}
+		} else {
+			allocations = []nitrolite.Allocation{
+				{
+					Destination: common.HexToAddress(params.FundsDestination),
+					Token:       common.HexToAddress(channel.Token),
+					Amount:      newChannelRawAmount.BigInt(),
+				},
+				{
+					Destination: s.signer.GetAddress(),
+					Token:       common.HexToAddress(channel.Token),
+					Amount:      big.NewInt(0),
+				},
+			}
 		}
 		return nil
 	})
