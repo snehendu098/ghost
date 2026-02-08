@@ -1,36 +1,29 @@
 import { describe, test, expect } from "bun:test";
-import { ethers } from "ethers";
 import {
   lender1,
   borrower1,
-  getContract,
-  getReadContract,
+  readContract,
+  writeContract,
   apiPost,
   apiGet,
-  apiDelete,
   triggerSettle,
-  waitForIndexer,
+  pollUntil,
   api,
+  parseEther,
 } from "../helpers.ts";
 
 describe("settle", () => {
-  const lendAmount = ethers.parseEther("0.005");
-  const collateralAmount = ethers.parseEther("0.01"); // 200% for default 500 score
+  const lendAmount = parseEther("0.005");
+  const collateralAmount = parseEther("0.01"); // 200% for default 500 score
 
   test("setup: deposit lend + collateral", async () => {
-    const lc = getContract(lender1);
-    const bc = getContract(borrower1);
+    await writeContract(lender1, "depositLend", [], lendAmount);
+    await writeContract(borrower1, "depositCollateral", [], collateralAmount);
 
-    const tx1 = await lc.depositLend({ value: lendAmount });
-    await tx1.wait();
-    const tx2 = await bc.depositCollateral({ value: collateralAmount });
-    await tx2.wait();
-
-    const read = getReadContract();
-    const lb = await read.getLenderBalance(lender1.address);
-    const bc2 = await read.getBorrowerCollateral(borrower1.address);
+    const lb = await readContract<bigint>("getLenderBalance", [lender1.account.address]);
+    const bc = await readContract<bigint>("getBorrowerCollateral", [borrower1.account.address]);
     expect(lb).toBeGreaterThanOrEqual(lendAmount);
-    expect(bc2).toBeGreaterThanOrEqual(collateralAmount);
+    expect(bc).toBeGreaterThanOrEqual(collateralAmount);
   }, 30_000);
 
   let lendIntentId: number;
@@ -38,7 +31,7 @@ describe("settle", () => {
 
   test("create matching intents", async () => {
     const lendRes = await apiPost("/intent/lend", {
-      address: lender1.address,
+      address: lender1.account.address,
       amount: lendAmount.toString(),
       minRate: "500",
       duration: 86400,
@@ -48,7 +41,7 @@ describe("settle", () => {
     lendIntentId = lendRes.data.id;
 
     const borrowRes = await apiPost("/intent/borrow", {
-      address: borrower1.address,
+      address: borrower1.account.address,
       amount: lendAmount.toString(),
       maxRate: "1000",
       duration: 86400,
@@ -64,14 +57,15 @@ describe("settle", () => {
   }, 60_000);
 
   test("loan appears in DB", async () => {
-    await waitForIndexer(5000);
-    const res = await apiGet(`/loans/${borrower1.address}`);
-    expect(res.ok).toBe(true);
+    const res = await pollUntil(
+      `/loans/${borrower1.account.address}`,
+      (d) => d.asBorrower.length > 0,
+    );
     expect(res.data.asBorrower.length).toBeGreaterThanOrEqual(1);
-  }, 15_000);
+  }, 45_000);
 
   test("lender position appears", async () => {
-    const res = await apiGet(`/user/${lender1.address}/lends`);
+    const res = await apiGet(`/user/${lender1.account.address}/lends`);
     expect(res.ok).toBe(true);
   });
 

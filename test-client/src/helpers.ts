@@ -1,13 +1,27 @@
-import { ethers } from "ethers";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseAbi,
+  parseEther,
+  formatEther,
+  type Address,
+  type Hex,
+  type WalletClient,
+  type Transport,
+  type Chain,
+  type Account,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { arcTestnet } from "viem/chains";
 
 // -- Config --
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000";
 const API_KEY = process.env.API_KEY || "ghost-secret-key";
-const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "";
+const CONTRACT_ADDRESS = (process.env.CONTRACT_ADDRESS || "") as Address;
 
-// -- ABI (user + view fns) --
-const GHOST_ABI = [
+// -- ABI --
+export const ghostAbi = parseAbi([
   "function depositLend() payable",
   "function withdrawLend(uint256 amount)",
   "function depositCollateral() payable",
@@ -22,32 +36,58 @@ const GHOST_ABI = [
   "function getRequiredCollateral(address,uint256) view returns (uint256)",
   "function getCreditScore(address) view returns (uint256)",
   "function loanCount() view returns (uint256)",
-];
+]);
 
-// -- Provider --
-export const provider = new ethers.JsonRpcProvider(RPC_URL);
+// -- Clients --
+export const publicClient = createPublicClient({
+  chain: arcTestnet,
+  transport: http(),
+});
 
-// -- Wallets --
-function loadWallet(envKey: string): ethers.Wallet {
-  const key = process.env[envKey];
+function loadWalletClient(envKey: string) {
+  const key = process.env[envKey] as Hex;
   if (!key) throw new Error(`${envKey} not set in .env`);
-  return new ethers.Wallet(key, provider);
+  const account = privateKeyToAccount(key);
+  return createWalletClient({
+    account,
+    chain: arcTestnet,
+    transport: http(),
+  });
 }
 
-export const lender1 = loadWallet("LENDER1_PRIVATE_KEY");
-export const lender2 = loadWallet("LENDER2_PRIVATE_KEY");
-export const borrower1 = loadWallet("BORROWER1_PRIVATE_KEY");
-export const borrower2 = loadWallet("BORROWER2_PRIVATE_KEY");
+export const lender1 = loadWalletClient("LENDER1_PRIVATE_KEY");
+export const lender2 = loadWalletClient("LENDER2_PRIVATE_KEY");
+export const borrower1 = loadWalletClient("BORROWER1_PRIVATE_KEY");
+export const borrower2 = loadWalletClient("BORROWER2_PRIVATE_KEY");
 
-// -- Contract --
-export function getContract(wallet: ethers.Wallet) {
-  if (!CONTRACT_ADDRESS) throw new Error("CONTRACT_ADDRESS not set");
-  return new ethers.Contract(CONTRACT_ADDRESS, GHOST_ABI, wallet);
+// -- Contract helpers --
+export async function readContract<T>(
+  functionName: string,
+  args: any[] = [],
+): Promise<T> {
+  return publicClient.readContract({
+    address: CONTRACT_ADDRESS,
+    abi: ghostAbi,
+    functionName: functionName as any,
+    args: args as any,
+  }) as Promise<T>;
 }
 
-export function getReadContract() {
-  if (!CONTRACT_ADDRESS) throw new Error("CONTRACT_ADDRESS not set");
-  return new ethers.Contract(CONTRACT_ADDRESS, GHOST_ABI, provider);
+export async function writeContract(
+  wallet: WalletClient<Transport, Chain, Account>,
+  functionName: string,
+  args: any[] = [],
+  value?: bigint,
+) {
+  const hash = await wallet.writeContract({
+    address: CONTRACT_ADDRESS,
+    abi: ghostAbi,
+    functionName: functionName as any,
+    args: args as any,
+    value,
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return { hash, receipt };
 }
 
 // -- API helpers --
@@ -88,7 +128,24 @@ export async function triggerLiquidate() {
 
 // -- Utils --
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 export async function waitForIndexer(ms = 3000) {
   await sleep(ms);
 }
+
+/** Poll an API endpoint until predicate is true or timeout */
+export async function pollUntil(
+  path: string,
+  predicate: (data: any) => boolean,
+  timeoutMs = 30_000,
+  intervalMs = 2000,
+): Promise<any> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const res = await apiGet(path);
+    if (res.ok && predicate(res.data)) return res;
+    await sleep(intervalMs);
+  }
+  throw new Error(`pollUntil timeout for ${path}`);
+}
+
+export { parseEther, formatEther, CONTRACT_ADDRESS };

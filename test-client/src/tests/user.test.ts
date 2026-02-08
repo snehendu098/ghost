@@ -3,7 +3,6 @@ import { lender1, borrower1, apiGet } from "../helpers.ts";
 
 describe("user endpoints", () => {
   test("GET /user/:addr/credit → returns default 500", async () => {
-    // use a fresh address that has never interacted
     const res = await apiGet(
       `/user/0x0000000000000000000000000000000000000001/credit`
     );
@@ -12,7 +11,7 @@ describe("user endpoints", () => {
   });
 
   test("GET /user/:addr/lends → returns data", async () => {
-    const res = await apiGet(`/user/${lender1.address}/lends`);
+    const res = await apiGet(`/user/${lender1.account.address}/lends`);
     expect(res.ok).toBe(true);
     expect(res.data.onChainBalance).toBeDefined();
     expect(res.data.activeIntents).toBeDefined();
@@ -20,7 +19,7 @@ describe("user endpoints", () => {
   });
 
   test("GET /user/:addr/borrows → returns data", async () => {
-    const res = await apiGet(`/user/${borrower1.address}/borrows`);
+    const res = await apiGet(`/user/${borrower1.account.address}/borrows`);
     expect(res.ok).toBe(true);
     expect(res.data.onChainCollateral).toBeDefined();
     expect(res.data.activeIntents).toBeDefined();
@@ -28,7 +27,7 @@ describe("user endpoints", () => {
   });
 
   test("GET /user/:addr/activity → returns array", async () => {
-    const res = await apiGet(`/user/${lender1.address}/activity`);
+    const res = await apiGet(`/user/${lender1.account.address}/activity`);
     expect(res.ok).toBe(true);
     expect(Array.isArray(res.data)).toBe(true);
   });

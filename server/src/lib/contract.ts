@@ -1,6 +1,16 @@
-import { ethers } from "ethers";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseAbi,
+  formatEther,
+  type Address,
+  type Hex,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { arcTestnet } from "viem/chains";
 
-const GHOST_LENDING_ABI = [
+const GHOST_LENDING_ABI = parseAbi([
   "function lenderBalances(address) view returns (uint256)",
   "function borrowerCollateral(address) view returns (uint256)",
   "function loanCount() view returns (uint256)",
@@ -21,23 +31,47 @@ const GHOST_LENDING_ABI = [
   "event LoanCreated(uint256 indexed loanId, address indexed borrower, uint256 principal)",
   "event LoanRepaid(uint256 indexed loanId, address indexed borrower, uint256 totalPaid)",
   "event LoanDefaulted(uint256 indexed loanId, address indexed borrower)",
-];
+]);
 
-const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
-const contractAddress = process.env.CONTRACT_ADDRESS || "";
+const contractAddress = (process.env.CONTRACT_ADDRESS || "") as Address;
 const serverKey = process.env.SERVER_PRIVATE_KEY || "";
 
-export const provider = new ethers.JsonRpcProvider(rpcUrl);
+export const publicClient = createPublicClient({
+  chain: arcTestnet,
+  transport: http(),
+});
 
-export const getContract = () => {
-  if (!contractAddress) throw new Error("CONTRACT_ADDRESS not set");
-  return new ethers.Contract(contractAddress, GHOST_LENDING_ABI, provider);
-};
-
-export const getSignedContract = () => {
+export const getWalletClient = () => {
   if (!serverKey) throw new Error("SERVER_PRIVATE_KEY not set");
-  const wallet = new ethers.Wallet(serverKey, provider);
-  return new ethers.Contract(contractAddress, GHOST_LENDING_ABI, wallet);
+  const account = privateKeyToAccount(serverKey as Hex);
+  return createWalletClient({
+    account,
+    chain: arcTestnet,
+    transport: http(),
+  });
 };
 
-export { GHOST_LENDING_ABI };
+export async function readContract<T>(functionName: string, args: any[] = []): Promise<T> {
+  if (!contractAddress) throw new Error("CONTRACT_ADDRESS not set");
+  return publicClient.readContract({
+    address: contractAddress,
+    abi: GHOST_LENDING_ABI,
+    functionName: functionName as any,
+    args: args as any,
+  }) as Promise<T>;
+}
+
+export async function writeContract(functionName: string, args: any[] = []) {
+  if (!contractAddress) throw new Error("CONTRACT_ADDRESS not set");
+  const wallet = getWalletClient();
+  const hash = await wallet.writeContract({
+    address: contractAddress,
+    abi: GHOST_LENDING_ABI,
+    functionName: functionName as any,
+    args: args as any,
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return { hash, receipt };
+}
+
+export { GHOST_LENDING_ABI, contractAddress, formatEther };

@@ -1,6 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { ethers } from "ethers";
-import { lender1, borrower1, apiPost, apiGet, apiDelete } from "../helpers.ts";
+import { lender1, borrower1, apiPost, apiGet, apiDelete, parseEther } from "../helpers.ts";
 
 describe("intents", () => {
   let lendIntentId: number;
@@ -8,8 +7,8 @@ describe("intents", () => {
 
   test("POST /intent/lend → creates intent", async () => {
     const res = await apiPost("/intent/lend", {
-      address: lender1.address,
-      amount: ethers.parseEther("0.005").toString(),
+      address: lender1.account.address,
+      amount: parseEther("0.005").toString(),
       minRate: "500",
       duration: 86400,
       tranche: "senior",
@@ -22,8 +21,8 @@ describe("intents", () => {
 
   test("POST /intent/borrow → creates intent", async () => {
     const res = await apiPost("/intent/borrow", {
-      address: borrower1.address,
-      amount: ethers.parseEther("0.005").toString(),
+      address: borrower1.account.address,
+      amount: parseEther("0.005").toString(),
       maxRate: "1000",
       duration: 86400,
     });
@@ -34,7 +33,7 @@ describe("intents", () => {
   });
 
   test("GET /intents/:address → lists active intents", async () => {
-    const res = await apiGet(`/intents/${lender1.address}`);
+    const res = await apiGet(`/intents/${lender1.account.address}`);
     expect(res.ok).toBe(true);
     expect(Array.isArray(res.data)).toBe(true);
   });
@@ -56,7 +55,7 @@ describe("intents", () => {
 
   test("POST /intent/lend missing amount → 400", async () => {
     const res = await apiPost("/intent/lend", {
-      address: lender1.address,
+      address: lender1.account.address,
       duration: 86400,
     });
     expect(res.ok).toBe(false);
@@ -72,7 +71,7 @@ describe("intents", () => {
 
   test("POST /intent/borrow missing duration → 400", async () => {
     const res = await apiPost("/intent/borrow", {
-      address: borrower1.address,
+      address: borrower1.account.address,
       amount: "1000",
     });
     expect(res.ok).toBe(false);

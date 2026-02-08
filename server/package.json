@@ -5,14 +5,14 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
+    "db:migrate": "drizzle-kit migrate",
     "test": "bun test"
   },
   "dependencies": {
     "hono": "^4.11.8",
     "drizzle-orm": "^0.38.0",
     "postgres": "^3.4.5",
-    "ethers": "^6.13.0",
-    "dotenv": "^16.4.7"
+    "viem": "^2.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",

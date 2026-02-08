@@ -1,41 +1,35 @@
 import { describe, test, expect } from "bun:test";
-import { ethers } from "ethers";
 import {
   lender1,
   lender2,
-  borrower1,
   borrower2,
-  getContract,
-  getReadContract,
+  readContract,
+  writeContract,
   apiPost,
   triggerSettle,
   apiGet,
   waitForIndexer,
+  pollUntil,
+  parseEther,
 } from "../helpers.ts";
 
 describe("repay", () => {
-  const lendAmount = ethers.parseEther("0.005");
-  const collateralAmount = ethers.parseEther("0.01");
+  const lendAmount = parseEther("0.005");
+  const collateralAmount = parseEther("0.01");
 
-  // create a loan to repay
   test("setup: deposit + create intents + settle", async () => {
-    const lc = getContract(lender2);
-    const bc = getContract(borrower2);
-
-    const tx1 = await lc.depositLend({ value: lendAmount });
-    await tx1.wait();
-    const tx2 = await bc.depositCollateral({ value: collateralAmount });
-    await tx2.wait();
+    await writeContract(lender2, "depositLend", [], lendAmount);
+    await writeContract(borrower2, "depositCollateral", [], collateralAmount);
 
     await apiPost("/intent/lend", {
-      address: lender2.address,
+      address: lender2.account.address,
       amount: lendAmount.toString(),
       minRate: "500",
       duration: 86400,
       tranche: "senior",
     });
     await apiPost("/intent/borrow", {
-      address: borrower2.address,
+      address: borrower2.account.address,
       amount: lendAmount.toString(),
       maxRate: "1000",
       duration: 86400,
@@ -44,39 +38,35 @@ describe("repay", () => {
     const res = await triggerSettle();
     expect(res.ok).toBe(true);
     expect(res.data.matched).toBeGreaterThanOrEqual(1);
-    await waitForIndexer(5000);
   }, 90_000);
 
   test("borrower repays loan", async () => {
-    // find loan
-    const loansRes = await apiGet(`/loans/${borrower2.address}`);
-    expect(loansRes.ok).toBe(true);
+    const loansRes = await pollUntil(
+      `/loans/${borrower2.account.address}`,
+      (d) => d.asBorrower.some((l: any) => l.status === "active"),
+    );
     const activeLoan = loansRes.data.asBorrower.find(
       (l: any) => l.status === "active"
     );
     expect(activeLoan).toBeDefined();
 
-    // get owed amount from contract
-    const read = getReadContract();
-    const owed = await read.getOwed(activeLoan.loanId);
+    const owed = await readContract<bigint>("getOwed", [activeLoan.loanId]);
 
-    // repay
-    const bc = getContract(borrower2);
-    const tx = await bc.repay(activeLoan.loanId, { value: owed + owed / 10n }); // +10% buffer
-    await tx.wait();
+    // repay w/ 10% buffer
+    await writeContract(borrower2, "repay", [activeLoan.loanId], owed + owed / 10n);
 
-    await waitForIndexer(5000);
-
-    // verify loan repaid in DB
-    const after = await apiGet(`/loans/${borrower2.address}`);
+    const after = await pollUntil(
+      `/loans/${borrower2.account.address}`,
+      (d) => d.asBorrower.some((l: any) => l.loanId === activeLoan.loanId && l.status === "repaid"),
+    );
     const repaidLoan = after.data.asBorrower.find(
       (l: any) => l.loanId === activeLoan.loanId
     );
     expect(repaidLoan.status).toBe("repaid");
-  }, 60_000);
+  }, 90_000);
 
   test("credit score increases after repay", async () => {
-    const res = await apiGet(`/user/${borrower2.address}/credit`);
+    const res = await apiGet(`/user/${borrower2.account.address}/credit`);
     expect(res.ok).toBe(true);
     expect(res.data.creditScore).toBeGreaterThanOrEqual(500);
   });
@@ -84,14 +74,11 @@ describe("repay", () => {
   // -- Sad paths --
 
   test("non-borrower tries repay → reverts", async () => {
-    const read = getReadContract();
-    const loanCount = await read.loanCount();
-    if (loanCount === 0n) return; // skip if no loans
+    const loanCount = await readContract<bigint>("loanCount");
+    if (loanCount === 0n) return;
 
-    const contract = getContract(lender1); // not the borrower
     try {
-      const tx = await contract.repay(0, { value: ethers.parseEther("1") });
-      await tx.wait();
+      await writeContract(lender1, "repay", [0], parseEther("1"));
       throw new Error("should have reverted");
     } catch (e: any) {
       expect(e.message).toContain("not borrower");
@@ -99,18 +86,14 @@ describe("repay", () => {
   }, 15_000);
 
   test("repay already-repaid loan → reverts", async () => {
-    const loansRes = await apiGet(`/loans/${borrower2.address}`);
+    const loansRes = await apiGet(`/loans/${borrower2.account.address}`);
     const repaidLoan = loansRes.data.asBorrower.find(
       (l: any) => l.status === "repaid"
     );
     if (!repaidLoan) return;
 
-    const contract = getContract(borrower2);
     try {
-      const tx = await contract.repay(repaidLoan.loanId, {
-        value: ethers.parseEther("0.01"),
-      });
-      await tx.wait();
+      await writeContract(borrower2, "repay", [repaidLoan.loanId], parseEther("0.01"));
       throw new Error("should have reverted");
     } catch (e: any) {
       expect(e.message).toContain("already repaid");
@@ -118,17 +101,14 @@ describe("repay", () => {
   }, 15_000);
 
   test("repay w/ insufficient value → reverts", async () => {
-    // need an active loan — create one first or skip
-    const loansRes = await apiGet(`/loans/${borrower2.address}`);
+    const loansRes = await apiGet(`/loans/${borrower2.account.address}`);
     const activeLoan = loansRes.data.asBorrower.find(
       (l: any) => l.status === "active"
     );
-    if (!activeLoan) return; // skip if no active loans
+    if (!activeLoan) return;
 
-    const contract = getContract(borrower2);
     try {
-      const tx = await contract.repay(activeLoan.loanId, { value: 1 });
-      await tx.wait();
+      await writeContract(borrower2, "repay", [activeLoan.loanId], 1n);
       throw new Error("should have reverted");
     } catch (e: any) {
       expect(e.message).toContain("insufficient repayment");

@@ -1,8 +1,8 @@
 import { db } from "../db";
 import { intents } from "../db/schema";
 import { eq, and } from "drizzle-orm";
-import { ethers } from "ethers";
-import { getContract } from "../lib/contract";
+import { parseEther } from "viem";
+import { readContract } from "../lib/contract";
 
 export interface LoanMatch {
   borrower: string;
@@ -17,7 +17,6 @@ export interface LoanMatch {
 }
 
 export async function clearMarket(): Promise<LoanMatch[]> {
-  // Get active intents
   const lendIntents = await db.select().from(intents)
     .where(and(eq(intents.type, "lend"), eq(intents.active, true)));
   const borrowIntents = await db.select().from(intents)
@@ -29,17 +28,15 @@ export async function clearMarket(): Promise<LoanMatch[]> {
   const usedLendIds = new Set<number>();
 
   for (const borrow of borrowIntents) {
-    const borrowAmount = ethers.parseEther(borrow.amount);
-    const borrowMaxRate = borrow.maxRate ? Number(borrow.maxRate) : 10000; // default 100%
+    const borrowAmount = parseEther(borrow.amount);
+    const borrowMaxRate = borrow.maxRate ? Number(borrow.maxRate) : 10000;
 
-    // Find compatible lend intents
     const seniorLenders: string[] = [];
     const seniorAmounts: bigint[] = [];
     const juniorLenders: string[] = [];
     const juniorAmounts: bigint[] = [];
     let filled = 0n;
 
-    // Sort lends by rate (lowest first = best for borrower)
     const availableLends = lendIntents
       .filter((l) => !usedLendIds.has(l.id) && l.address !== borrow.address)
       .sort((a, b) => Number(a.minRate || 0) - Number(b.minRate || 0));
@@ -50,10 +47,9 @@ export async function clearMarket(): Promise<LoanMatch[]> {
       const lendRate = Number(lend.minRate || 0);
       if (lendRate > borrowMaxRate) continue;
 
-      // Duration compatibility: lend duration >= borrow duration
       if (lend.duration < borrow.duration) continue;
 
-      const lendAmount = ethers.parseEther(lend.amount);
+      const lendAmount = parseEther(lend.amount);
       const toFill = borrowAmount - filled < lendAmount ? borrowAmount - filled : lendAmount;
 
       if (lend.tranche === "senior") {
@@ -68,9 +64,8 @@ export async function clearMarket(): Promise<LoanMatch[]> {
       usedLendIds.add(lend.id);
     }
 
-    if (filled < borrowAmount) continue; // Can't fill this borrow
+    if (filled < borrowAmount) continue;
 
-    // Calculate rate: weighted average of lender min rates
     let weightedRate = 0n;
     const allAmounts = [...seniorAmounts, ...juniorAmounts];
     const allRates = [
@@ -89,13 +84,10 @@ export async function clearMarket(): Promise<LoanMatch[]> {
     }
     const avgRate = filled > 0n ? Number(weightedRate / filled) : 500;
 
-    // Get required collateral
     let collateralAmount: bigint;
     try {
-      const contract = getContract();
-      collateralAmount = await contract.getRequiredCollateral(borrow.address, borrowAmount);
+      collateralAmount = await readContract<bigint>("getRequiredCollateral", [borrow.address, borrowAmount]);
     } catch {
-      // Fallback: 150% collateral
       collateralAmount = (borrowAmount * 15000n) / 10000n;
     }
 
@@ -111,11 +103,9 @@ export async function clearMarket(): Promise<LoanMatch[]> {
       duration: borrow.duration,
     });
 
-    // Deactivate matched borrow intent
     await db.update(intents).set({ active: false }).where(eq(intents.id, borrow.id));
   }
 
-  // Deactivate used lend intents
   for (const id of usedLendIds) {
     await db.update(intents).set({ active: false }).where(eq(intents.id, id));
   }

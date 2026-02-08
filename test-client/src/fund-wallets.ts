@@ -1,48 +1,54 @@
-import { ethers } from "ethers";
+import { createPublicClient, createWalletClient, http, parseEther, formatEther, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { arcTestnet } from "viem/chains";
 
-const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
-const SERVER_PRIVATE_KEY = process.env.SERVER_PRIVATE_KEY;
+const SERVER_PRIVATE_KEY = process.env.SERVER_PRIVATE_KEY as Hex;
 
 if (!SERVER_PRIVATE_KEY) {
   console.error("SERVER_PRIVATE_KEY not set in .env");
   process.exit(1);
 }
 
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const funder = new ethers.Wallet(SERVER_PRIVATE_KEY, provider);
+const publicClient = createPublicClient({ chain: arcTestnet, transport: http() });
+const funderAccount = privateKeyToAccount(SERVER_PRIVATE_KEY);
+const funder = createWalletClient({
+  account: funderAccount,
+  chain: arcTestnet,
+  transport: http(),
+});
 
 const walletKeys = [
   process.env.LENDER1_PRIVATE_KEY,
   process.env.LENDER2_PRIVATE_KEY,
   process.env.BORROWER1_PRIVATE_KEY,
   process.env.BORROWER2_PRIVATE_KEY,
-];
+] as (Hex | undefined)[];
 
-const FUND_AMOUNT = ethers.parseEther("0.5");
+const FUND_AMOUNT = parseEther("0.5");
 
 async function main() {
-  console.log(`Funder: ${funder.address}`);
-  const balance = await provider.getBalance(funder.address);
-  console.log(`Funder balance: ${ethers.formatEther(balance)} ETH`);
+  console.log(`Funder: ${funderAccount.address}`);
+  const balance = await publicClient.getBalance({ address: funderAccount.address });
+  console.log(`Funder balance: ${formatEther(balance)} ETH`);
 
   for (const key of walletKeys) {
     if (!key) {
       console.warn("Skipping undefined wallet key");
       continue;
     }
-    const wallet = new ethers.Wallet(key);
-    const existing = await provider.getBalance(wallet.address);
+    const account = privateKeyToAccount(key);
+    const existing = await publicClient.getBalance({ address: account.address });
     if (existing >= FUND_AMOUNT) {
-      console.log(`${wallet.address} already funded (${ethers.formatEther(existing)})`);
+      console.log(`${account.address} already funded (${formatEther(existing)})`);
       continue;
     }
-    console.log(`Funding ${wallet.address}...`);
-    const tx = await funder.sendTransaction({
-      to: wallet.address,
+    console.log(`Funding ${account.address}...`);
+    const hash = await funder.sendTransaction({
+      to: account.address,
       value: FUND_AMOUNT,
     });
-    await tx.wait();
-    console.log(`  tx: ${tx.hash}`);
+    await publicClient.waitForTransactionReceipt({ hash });
+    console.log(`  tx: ${hash}`);
   }
   console.log("Done!");
 }

@@ -3,7 +3,7 @@ import { db } from "../db";
 import { intents, loans, lenderPositions, activities } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { ok, err } from "../lib/responses";
-import { getContract } from "../lib/contract";
+import { readContract } from "../lib/contract";
 
 export const userRoutes = new Hono();
 
@@ -20,8 +20,8 @@ userRoutes.get("/user/:address/lends", async (c) => {
 
     let onChainBalance = "0";
     try {
-      const contract = getContract();
-      onChainBalance = (await contract.getLenderBalance(address)).toString();
+      const bal = await readContract<bigint>("getLenderBalance", [address]);
+      onChainBalance = bal.toString();
     } catch {}
 
     return ok(c, { onChainBalance, activeIntents, positions });
@@ -43,8 +43,8 @@ userRoutes.get("/user/:address/borrows", async (c) => {
 
     let onChainCollateral = "0";
     try {
-      const contract = getContract();
-      onChainCollateral = (await contract.getBorrowerCollateral(address)).toString();
+      const col = await readContract<bigint>("getBorrowerCollateral", [address]);
+      onChainCollateral = col.toString();
     } catch {}
 
     return ok(c, { onChainCollateral, activeIntents, loans: userLoans });
@@ -59,8 +59,7 @@ userRoutes.get("/user/:address/credit", async (c) => {
     const address = c.req.param("address");
     let score = 500;
     try {
-      const contract = getContract();
-      score = Number(await contract.getCreditScore(address));
+      score = Number(await readContract<bigint>("getCreditScore", [address]));
     } catch {}
 
     return ok(c, { address, creditScore: score });

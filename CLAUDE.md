@@ -54,7 +54,7 @@ runner/           TypeScript — polls /trigger/settle and /trigger/liquidate (B
 ### Server
 - Hono routes mounted at root: intents, market, loans, user, trigger
 - Trigger routes protected by `x-api-key` header (`apiKeyAuth` middleware)
-- `server/src/lib/contract.ts` — ethers provider + ABI for read/write contract access
+- `server/src/lib/contract.ts` — viem publicClient/walletClient + ABI for read/write contract access
 - `server/src/lib/responses.ts` — `ok(c, data)` / `err(c, msg, status)` helpers
 - `server/src/services/clearing.ts` — `clearMarket()` matches intents by rate/duration/tranche
 - `server/src/services/indexer.ts` — `startIndexer()` subscribes to 7 contract events
@@ -67,9 +67,10 @@ runner/           TypeScript — polls /trigger/settle and /trigger/liquidate (B
 ```
 DATABASE_URL=postgresql://ghost:ghost@localhost:5432/ghost_db
 CONTRACT_ADDRESS=0x...
-RPC_URL=https://rpc.arc.money
 SERVER_PRIVATE_KEY=0x...
 API_KEY=ghost-secret-key
 ```
+
+RPC is provided by `viem/chains` (`arcTestnet`) — no `RPC_URL` needed.
 
 Bun auto-loads `.env` — no dotenv needed.

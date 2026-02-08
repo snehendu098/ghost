@@ -5,7 +5,7 @@ import { clearMarket } from "../services/clearing";
 import { db } from "../db";
 import { loans } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { getSignedContract } from "../lib/contract";
+import { writeContract } from "../lib/contract";
 
 export const triggerRoutes = new Hono();
 
@@ -15,12 +15,11 @@ triggerRoutes.post("/trigger/settle", apiKeyAuth, async (c) => {
     const matches = await clearMarket();
     if (matches.length === 0) return ok(c, { matched: 0 });
 
-    const contract = getSignedContract();
     const results = [];
 
     for (const match of matches) {
       try {
-        const tx = await contract.executeLoan(
+        const { hash } = await writeContract("executeLoan", [
           match.borrower,
           match.seniorLenders,
           match.seniorAmounts,
@@ -29,10 +28,9 @@ triggerRoutes.post("/trigger/settle", apiKeyAuth, async (c) => {
           match.principal,
           match.collateralAmount,
           match.rate,
-          match.duration
-        );
-        const receipt = await tx.wait();
-        results.push({ borrower: match.borrower, principal: match.principal.toString(), txHash: receipt.hash });
+          match.duration,
+        ]);
+        results.push({ borrower: match.borrower, principal: match.principal.toString(), txHash: hash });
       } catch (e: any) {
         results.push({ borrower: match.borrower, error: e.message });
       }
@@ -56,14 +54,12 @@ triggerRoutes.post("/trigger/liquidate", apiKeyAuth, async (c) => {
 
     if (overdue.length === 0) return ok(c, { liquidated: 0 });
 
-    const contract = getSignedContract();
     const results = [];
 
     for (const loan of overdue) {
       try {
-        const tx = await contract.liquidate(loan.loanId);
-        const receipt = await tx.wait();
-        results.push({ loanId: loan.loanId, txHash: receipt.hash });
+        const { hash } = await writeContract("liquidate", [loan.loanId]);
+        results.push({ loanId: loan.loanId, txHash: hash });
       } catch (e: any) {
         results.push({ loanId: loan.loanId, error: e.message });
       }
