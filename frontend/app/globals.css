@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-foreground: #ffffff;
+  --font-sans: var(--font-poppins);
+}
+
+body {
+  background: #000000;
+  color: #ffffff;
+}
