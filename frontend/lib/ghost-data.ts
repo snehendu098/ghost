@@ -18,7 +18,7 @@ function hashStr(str: string): number {
 
 // ── Types ──
 
-export type CreditTier = "New" | "Bronze" | "Silver" | "Gold" | "Platinum" | "Diamond";
+export type CreditTier = "New" | "Shade" | "Whisper" | "Phantom" | "Demon" | "Ghost";
 
 export interface CreditScore {
   score: number;
@@ -113,11 +113,11 @@ export function getCollateralRequired(score: number): number {
 
 export function getCreditTier(score: number): CreditTier {
   if (score < 100) return "New";
-  if (score < 200) return "Bronze";
-  if (score < 400) return "Silver";
-  if (score < 600) return "Gold";
-  if (score < 800) return "Platinum";
-  return "Diamond";
+  if (score < 200) return "Shade";
+  if (score < 400) return "Whisper";
+  if (score < 600) return "Phantom";
+  if (score < 800) return "Demon";
+  return "Ghost";
 }
 
 // ── Mock Generators (USDC only) ──
