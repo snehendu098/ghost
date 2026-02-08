@@ -327,21 +327,19 @@ export default function BorrowPage() {
             <div>
               <div className="text-[11px] text-[#555] uppercase tracking-wider mb-2">Lend Bids</div>
               <div className="bg-[#050505] rounded-xl border border-[#1a1a1a] overflow-hidden">
-                <div className="grid grid-cols-[1fr_70px_50px_50px] items-center px-3 py-2 border-b border-[#1a1a1a] text-[10px] text-[#555] uppercase">
+                <div className="grid grid-cols-[1fr_auto_auto] items-center px-3 py-2 border-b border-[#1a1a1a] text-[10px] text-[#555] uppercase">
                   <span>Address</span>
-                  <span className="text-right">Amount</span>
-                  <span className="text-right">Rate</span>
-                  <span className="text-right">Days</span>
+                  <span className="text-right min-w-[80px]">Amount</span>
+                  <span className="text-right min-w-[50px]">Days</span>
                 </div>
                 {(orderbook?.lends ?? []).length === 0 ? (
                   <div className="px-3 py-4 text-center text-[12px] text-[#444]">No lend bids</div>
                 ) : (
-                  (orderbook?.lends ?? []).slice(0, 8).map((o) => (
-                    <div key={o.id} className="grid grid-cols-[1fr_70px_50px_50px] items-center px-3 py-2 border-b border-[#1a1a1a] last:border-b-0">
+                  [...(orderbook?.lends ?? [])].sort((a, b) => b.id - a.id).slice(0, 8).map((o) => (
+                    <div key={o.id} className="grid grid-cols-[1fr_auto_auto] items-center px-3 py-2 border-b border-[#1a1a1a] last:border-b-0">
                       <span className="text-[11px] text-[#888] font-mono">{truncAddr(o.address)}</span>
-                      <span className="text-[11px] text-white text-right">{Number(o.amount).toLocaleString()}</span>
-                      <span className="text-[11px] text-[#d4d4d4] text-right">{o.minRate ?? "—"}%</span>
-                      <span className="text-[11px] text-[#666] text-right">{o.duration}d</span>
+                      <span className="text-[11px] text-white text-right min-w-[80px]">{Number(o.amount).toLocaleString()} USDC</span>
+                      <span className="text-[11px] text-[#666] text-right min-w-[50px]">{o.duration}d</span>
                     </div>
                   ))
                 )}
@@ -352,21 +350,19 @@ export default function BorrowPage() {
             <div>
               <div className="text-[11px] text-[#555] uppercase tracking-wider mb-2">Borrow Bids</div>
               <div className="bg-[#050505] rounded-xl border border-[#1a1a1a] overflow-hidden">
-                <div className="grid grid-cols-[1fr_70px_50px_50px] items-center px-3 py-2 border-b border-[#1a1a1a] text-[10px] text-[#555] uppercase">
+                <div className="grid grid-cols-[1fr_auto_auto] items-center px-3 py-2 border-b border-[#1a1a1a] text-[10px] text-[#555] uppercase">
                   <span>Address</span>
-                  <span className="text-right">Amount</span>
-                  <span className="text-right">Rate</span>
-                  <span className="text-right">Days</span>
+                  <span className="text-right min-w-[80px]">Amount</span>
+                  <span className="text-right min-w-[50px]">Days</span>
                 </div>
                 {(orderbook?.borrows ?? []).length === 0 ? (
                   <div className="px-3 py-4 text-center text-[12px] text-[#444]">No borrow bids</div>
                 ) : (
-                  (orderbook?.borrows ?? []).slice(0, 8).map((o) => (
-                    <div key={o.id} className="grid grid-cols-[1fr_70px_50px_50px] items-center px-3 py-2 border-b border-[#1a1a1a] last:border-b-0">
+                  [...(orderbook?.borrows ?? [])].sort((a, b) => b.id - a.id).slice(0, 8).map((o) => (
+                    <div key={o.id} className="grid grid-cols-[1fr_auto_auto] items-center px-3 py-2 border-b border-[#1a1a1a] last:border-b-0">
                       <span className="text-[11px] text-[#888] font-mono">{truncAddr(o.address)}</span>
-                      <span className="text-[11px] text-white text-right">{Number(o.amount).toLocaleString()}</span>
-                      <span className="text-[11px] text-[#888] text-right">{o.maxRate ?? "—"}%</span>
-                      <span className="text-[11px] text-[#666] text-right">{o.duration}d</span>
+                      <span className="text-[11px] text-white text-right min-w-[80px]">{Number(o.amount).toLocaleString()} USDC</span>
+                      <span className="text-[11px] text-[#666] text-right min-w-[50px]">{o.duration}d</span>
                     </div>
                   ))
                 )}

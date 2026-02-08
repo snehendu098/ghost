@@ -1,17 +1,30 @@
 import { createPublicClient, http } from "viem";
-import { arbitrumSepolia, arcTestnet, baseSepolia } from "viem/chains";
+import { arcTestnet, baseSepolia, sepolia, avalancheFuji } from "viem/chains";
 
 export const supportedChains = [
   arcTestnet,
   baseSepolia,
-  arbitrumSepolia,
+  sepolia,
+  avalancheFuji,
 ] as const;
 
 export const USDC_ADDRESSES: Record<number, `0x${string}` | null> = {
   [arcTestnet.id]: "0x3600000000000000000000000000000000000000",
   [baseSepolia.id]: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-  [arbitrumSepolia.id]: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+  [sepolia.id]: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+  [avalancheFuji.id]: "0x5425890298aed601595a70AB815c96711a31Bc65",
 };
+
+// ── Chain logos (CoinMarketCap static assets) ──
+
+export const CHAIN_LOGOS: Record<number, string> = {
+  [arcTestnet.id]: "/arc.png",
+  [baseSepolia.id]: "/base.png",
+  [sepolia.id]: "https://s2.coinmarketcap.com/static/img/coins/64x64/1027.png",
+  [avalancheFuji.id]: "https://s2.coinmarketcap.com/static/img/coins/64x64/5805.png",
+};
+
+export const USDC_LOGO = "https://s2.coinmarketcap.com/static/img/coins/64x64/3408.png";
 
 // ── Public clients per chain ──
 

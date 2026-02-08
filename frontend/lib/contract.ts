@@ -126,6 +126,7 @@ export async function writeDepositLend(
   amountWei: bigint,
 ) {
   return walletClient.writeContract({
+    account: walletClient.account!,
     address: CONTRACT_ADDRESS,
     abi: GHOST_ABI,
     functionName: "depositLend",
@@ -140,6 +141,7 @@ export async function writeDepositCollateral(
   amountWei: bigint,
 ) {
   return walletClient.writeContract({
+    account: walletClient.account!,
     address: CONTRACT_ADDRESS,
     abi: GHOST_ABI,
     functionName: "depositCollateral",
@@ -155,6 +157,7 @@ export async function writeRepay(
   amountWei: bigint,
 ) {
   return walletClient.writeContract({
+    account: walletClient.account!,
     address: CONTRACT_ADDRESS,
     abi: GHOST_ABI,
     functionName: "repay",

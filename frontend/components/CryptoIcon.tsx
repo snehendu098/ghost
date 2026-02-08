@@ -7,7 +7,6 @@ const networkMap: Record<string, string> = {
   bnb: "bnb",
   avalanche: "avax",
   polygon: "pol",
-  arbitrum: "arb",
   optimism: "op",
   solana: "sol",
   base: "base",
@@ -23,7 +22,6 @@ const CMC_IDS: Record<string, number> = {
   usdc: 3408,
   avax: 5805,
   pol: 3890,
-  arb: 11841,
   op: 11840,
   dai: 4943,
   link: 1975,
@@ -40,12 +38,12 @@ const fallbackMeta: Record<string, { color: string; letter: string }> = {
   usdc: { color: "#2775ca", letter: "U" },
   avax: { color: "#e84142", letter: "A" },
   pol: { color: "#8247e5", letter: "P" },
-  arb: { color: "#28a0f0", letter: "A" },
   op: { color: "#ff0420", letter: "O" },
   dai: { color: "#f5ac37", letter: "D" },
   link: { color: "#2a5ada", letter: "L" },
   base: { color: "#0052ff", letter: "B" },
   wbtc: { color: "#f09242", letter: "W" },
+  arc: { color: "#8b5cf6", letter: "A" },
 };
 
 function Fallback({ iconId, size }: { iconId: string; size: number }) {

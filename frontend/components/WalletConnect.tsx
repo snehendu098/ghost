@@ -3,11 +3,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useWallet } from "@/contexts/WalletContext";
+import { ChainIcon } from "@/components/ChainIcon";
 import {
   supportedChains,
   USDC_ADDRESSES,
   ERC20_ABI,
   createChainPublicClient,
+  USDC_LOGO,
 } from "@/lib/wallet";
 import { arcTestnet } from "viem/chains";
 
@@ -15,41 +17,8 @@ function truncAddr(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-const USDC_LOGO = "https://s2.coinmarketcap.com/static/img/coins/64x64/3408.png";
-
 function tokenSymbol(chainId: number) {
   return chainId === arcTestnet.id ? "USD" : "USDC";
-}
-
-const CHAIN_LOGOS: Record<number, string> = {
-  [arcTestnet.id]: "/arc.png",
-  84532: "https://s2.coinmarketcap.com/static/img/coins/64x64/9195.png", // Base
-  421614: "https://s2.coinmarketcap.com/static/img/coins/64x64/11841.png", // Arbitrum
-};
-
-function ChainIcon({ chainId, size = 18 }: { chainId: number; size?: number }) {
-  const [err, setErr] = useState(false);
-  const src = CHAIN_LOGOS[chainId];
-  if (!src || err) {
-    return (
-      <div
-        className="rounded-full bg-[#222] flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-        style={{ width: size, height: size }}
-      >
-        A
-      </div>
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt=""
-      width={size}
-      height={size}
-      className="rounded-full shrink-0"
-      onError={() => setErr(true)}
-    />
-  );
 }
 
 interface ChainBalance {
