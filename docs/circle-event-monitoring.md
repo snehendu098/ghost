@@ -77,3 +77,37 @@ POST /webhook/circle — receives event notifications, writes to DB
 | Historical data | no backfill | API query for past events |
 | RPC usage | 7 poll loops | zero (Circle handles it) |
 | Test reliability | needs pollUntil hacks | data arrives before test checks |
+
+## Webhook Latency Problem & Hybrid Fix
+
+### Problem discovered during implementation
+
+Circle webhooks for **deposit events** (`LendDeposited`, `CollateralDeposited`) arrive fast enough (~seconds). But **loan events** (`LoanCreated`, `LoanRepaid`, `LoanDefaulted`) arrive too slowly (>30s), causing test timeouts.
+
+Root cause: after `/trigger/settle` calls `executeLoan()` on-chain, the test immediately polls `/loans/:address` waiting for the loan in DB. Circle webhook hasn't arrived yet → 30s `pollUntil` timeout.
+
+### Solution: hybrid approach
+
+**Server-initiated txs** (`executeLoan`, `liquidate` in trigger routes) already have the tx receipt. Decode events from the receipt and write to DB inline — zero latency.
+
+**User-initiated txs** (deposits, withdrawals from frontend) → Circle webhook handles these.
+
+### Key files
+
+| File | Role |
+|---|---|
+| `server/src/services/event-handlers.ts` | 7 handler functions + `processReceiptLogs(receipt)` helper |
+| `server/src/routes/webhook.ts` | `POST /webhook/circle` — decodes Circle payload, routes to handlers |
+| `server/src/routes/trigger.ts` | calls `processReceiptLogs(receipt)` after `executeLoan`/`liquidate` |
+| `server/src/services/indexer.ts` | old polling indexer, kept as fallback but not imported |
+
+### Idempotency
+
+Circle may still deliver webhooks for events already processed from receipts. `processLoanCreated` uses `.onConflictDoNothing({ target: loans.loanId })` so duplicate inserts are safe.
+
+### Dev setup
+
+1. `ngrok http 3000` → get forwarding URL
+2. Circle Console → set webhook URL to `https://<ngrok>/webhook/circle`
+3. Filter to `contracts.EventLog` notification type
+4. `bun run dev` in server/

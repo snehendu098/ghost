@@ -40,7 +40,10 @@ describe("repay", () => {
     expect(res.data.matched).toBeGreaterThanOrEqual(1);
   }, 90_000);
 
+  let scoreBefore: number;
+
   test("borrower repays loan", async () => {
+    scoreBefore = (await apiGet(`/user/${borrower2.account.address}/credit`)).data.creditScore;
     const loansRes = await pollUntil(
       `/loans/${borrower2.account.address}`,
       (d) => d.asBorrower.some((l: any) => l.status === "active"),
@@ -55,6 +58,9 @@ describe("repay", () => {
     // repay w/ 10% buffer
     await writeContract(borrower2, "repay", [activeLoan.loanId], owed + owed / 10n);
 
+    // Sync on-chain state to DB (webhook is slow for loan events)
+    await apiPost(`/loans/sync/${activeLoan.loanId}`, {});
+
     const after = await pollUntil(
       `/loans/${borrower2.account.address}`,
       (d) => d.asBorrower.some((l: any) => l.loanId === activeLoan.loanId && l.status === "repaid"),
@@ -68,7 +74,7 @@ describe("repay", () => {
   test("credit score increases after repay", async () => {
     const res = await apiGet(`/user/${borrower2.account.address}/credit`);
     expect(res.ok).toBe(true);
-    expect(res.data.creditScore).toBeGreaterThanOrEqual(500);
+    expect(res.data.creditScore).toBeGreaterThan(scoreBefore);
   });
 
   // -- Sad paths --
@@ -78,7 +84,7 @@ describe("repay", () => {
     if (loanCount === 0n) return;
 
     try {
-      await writeContract(lender1, "repay", [0], parseEther("1"));
+      await writeContract(lender1, "repay", [0], parseEther("0.001"));
       throw new Error("should have reverted");
     } catch (e: any) {
       expect(e.message).toContain("not borrower");

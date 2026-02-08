@@ -5,7 +5,9 @@ import { clearMarket } from "../services/clearing";
 import { db } from "../db";
 import { loans } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { writeContract } from "../lib/contract";
+import { writeContract, readContract } from "../lib/contract";
+import { processLoanCreated, processLoanDefaulted } from "../services/event-handlers";
+import type { Address } from "viem";
 
 export const triggerRoutes = new Hono();
 
@@ -30,8 +32,17 @@ triggerRoutes.post("/trigger/settle", apiKeyAuth, async (c) => {
           match.rate,
           match.duration,
         ]);
+        // Read loanId directly from contract state (reliable, no event decoding)
+        const loanCount = await readContract<bigint>("loanCount", []);
+        await processLoanCreated(
+          BigInt(Number(loanCount) - 1),
+          match.borrower as Address,
+          match.principal,
+          hash,
+        );
         results.push({ borrower: match.borrower, principal: match.principal.toString(), txHash: hash });
       } catch (e: any) {
+        console.error("[settle] loan execution failed:", match.borrower, e);
         results.push({ borrower: match.borrower, error: e.message });
       }
     }
@@ -59,8 +70,10 @@ triggerRoutes.post("/trigger/liquidate", apiKeyAuth, async (c) => {
     for (const loan of overdue) {
       try {
         const { hash } = await writeContract("liquidate", [loan.loanId]);
+        await processLoanDefaulted(BigInt(loan.loanId), loan.borrower as Address, hash);
         results.push({ loanId: loan.loanId, txHash: hash });
       } catch (e: any) {
+        console.error("[liquidate] failed:", loan.loanId, e);
         results.push({ loanId: loan.loanId, error: e.message });
       }
     }

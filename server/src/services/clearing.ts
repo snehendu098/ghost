@@ -1,7 +1,6 @@
 import { db } from "../db";
 import { intents } from "../db/schema";
 import { eq, and } from "drizzle-orm";
-import { parseEther } from "viem";
 import { readContract } from "../lib/contract";
 
 export interface LoanMatch {
@@ -28,7 +27,7 @@ export async function clearMarket(): Promise<LoanMatch[]> {
   const usedLendIds = new Set<number>();
 
   for (const borrow of borrowIntents) {
-    const borrowAmount = parseEther(borrow.amount);
+    const borrowAmount = BigInt(borrow.amount);
     const borrowMaxRate = borrow.maxRate ? Number(borrow.maxRate) : 10000;
 
     const seniorLenders: string[] = [];
@@ -49,7 +48,7 @@ export async function clearMarket(): Promise<LoanMatch[]> {
 
       if (lend.duration < borrow.duration) continue;
 
-      const lendAmount = parseEther(lend.amount);
+      const lendAmount = BigInt(lend.amount);
       const toFill = borrowAmount - filled < lendAmount ? borrowAmount - filled : lendAmount;
 
       if (lend.tranche === "senior") {

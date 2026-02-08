@@ -6,7 +6,7 @@ import { marketRoutes } from "./routes/market";
 import { loanRoutes } from "./routes/loans";
 import { userRoutes } from "./routes/user";
 import { triggerRoutes } from "./routes/trigger";
-import { startIndexer } from "./services/indexer";
+import { webhookRoutes } from "./routes/webhook";
 
 const app = new Hono();
 
@@ -20,7 +20,6 @@ app.route("/", marketRoutes);
 app.route("/", loanRoutes);
 app.route("/", userRoutes);
 app.route("/", triggerRoutes);
-
-startIndexer();
+app.route("/", webhookRoutes);
 
 export default app;
