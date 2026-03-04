@@ -32,7 +32,7 @@ contract SetupAll is Script {
         vm.startBroadcast(deployerPK);
 
         // 1. Deploy SimpleToken ERC20
-        SimpleToken token = new SimpleToken("DemoToken", "DEMO", deployer);
+        SimpleToken token = new SimpleToken("Ghost USD", "gUSD", deployer);
         console.log("1) SimpleToken deployed at:", address(token));
 
         // 2. Deploy PolicyEngine (behind proxy)

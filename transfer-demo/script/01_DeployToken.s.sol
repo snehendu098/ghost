@@ -15,7 +15,7 @@ contract DeployToken is Script {
 
         vm.startBroadcast(deployerPK);
 
-        SimpleToken token = new SimpleToken("DemoToken", "DEMO", deployer);
+        SimpleToken token = new SimpleToken("Ghost USD", "gUSD", deployer);
 
         vm.stopBroadcast();
 
