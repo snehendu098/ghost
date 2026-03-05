@@ -1,25 +1,27 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import { intentRoutes } from "./routes/intents";
-import { marketRoutes } from "./routes/market";
-import { loanRoutes } from "./routes/loans";
-import { userRoutes } from "./routes/user";
-import { triggerRoutes } from "./routes/trigger";
-import { webhookRoutes } from "./routes/webhook";
+import ghostRoute from "./routes/ghost.routes";
+import { getPoolAddress } from "./external-api";
+import { config } from "./config";
 
 const app = new Hono();
 
-app.use("*", cors());
-app.use("*", logger());
+app.get("/health", (c) => {
+  return c.json({
+    status: "ok",
+    version: "1",
+    poolAddress: getPoolAddress(),
+  });
+});
 
-app.get("/health", (c) => c.json({ status: "ok", timestamp: Date.now() }));
+app.get("/cre-public-key", (c) => {
+  return c.json({ publicKey: config.CRE_PUBLIC_KEY });
+});
 
-app.route("/", intentRoutes);
-app.route("/", marketRoutes);
-app.route("/", loanRoutes);
-app.route("/", userRoutes);
-app.route("/", triggerRoutes);
-app.route("/", webhookRoutes);
+app.route("/api/v1", ghostRoute);
 
-export default app;
+console.log(`GHOST server running on port ${config.PORT}`);
+
+export default {
+  port: config.PORT,
+  fetch: app.fetch,
+};
