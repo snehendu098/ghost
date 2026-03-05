@@ -16,4 +16,5 @@ export const config = {
     "0xE588a6c73933BFD66Af9b4A07d48bcE59c0D2d13",
   CHAIN_ID: Number(process.env.CHAIN_ID ?? "11155111"),
   PORT: Number(process.env.PORT ?? "3000"),
+  INTERNAL_API_KEY: process.env.INTERNAL_API_KEY ?? "",
 };

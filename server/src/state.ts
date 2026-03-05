@@ -1,4 +1,4 @@
-import type { DepositSlot, LendIntent } from "./types";
+import type { DepositSlot, LendIntent, BorrowIntent, MatchProposal, Loan } from "./types";
 
 const SLOT_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -6,6 +6,9 @@ class State {
   depositSlots: Map<string, DepositSlot> = new Map(); // shieldedAddr → slot
   activeBuffer: Map<string, LendIntent> = new Map(); // intentId → intent
   balances: Map<string, Map<string, bigint>> = new Map(); // user → token → amount
+  borrowIntents: Map<string, BorrowIntent> = new Map(); // intentId → intent
+  matchProposals: Map<string, MatchProposal> = new Map(); // proposalId → proposal
+  loans: Map<string, Loan> = new Map(); // loanId → loan
   currentEpoch: number = 1;
 
   creditBalance(user: string, token: string, amount: bigint): void {

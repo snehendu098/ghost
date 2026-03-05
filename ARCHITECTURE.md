@@ -1,8 +1,9 @@
-# GHOST Protocol — Private P2P Lending on Chainlink's Compliant Private Transfer API
+# GHOST Protocol — Private P2P Lending with Tick-Based Rate Discovery
 
-> Fixed-rate, sealed-bid lending overlay built entirely on top of
-> the external Compliant Private Transfer Demo vault + API.
-> No custom vault contract. No on-chain settlement. All fund custody is external.
+> Fixed-rate, **discriminatory-price**, continuous-matching lending overlay
+> built on top of the Chainlink Compliant Private Transfer vault + API.
+> Rate discovery follows the tick-based framework from
+> "Rate Discovery in Decentralised Lending" (Eli & Alexandre, JBBA 2025).
 
 ---
 
@@ -10,13 +11,13 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  EXTERNAL LAYER  (not ours — provided by Chainlink demo)            │
+│  EXTERNAL LAYER  (Chainlink Compliant Private Transfer)             │
 │                                                                     │
 │  Vault: 0xE588a6c73933BFD66Af9b4A07d48bcE59c0D2d13  (Sepolia)       │
 │  API:   convergence2026-token-api.cldev.cloud                       │
 │                                                                     │
-│  Provides: token deploy, vault register, deposit, withdraw,         │
-│            private-transfer, balances, shielded-address, txs        │
+│  Provides: deposit, withdraw, private-transfer, balances,           │
+│            shielded-address                                         │
 │  Auth:    EIP-712 typed-data signatures                             │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │  private-transfer / balances / withdraw
@@ -24,142 +25,166 @@
 ┌──────────────────────────────▼──────────────────────────────────────┐
 │  GHOST API SERVER  (Hono + Bun)                                     │
 │                                                                     │
-│  Lending overlay: pool wallet, sealed-bid auction,                  │
-│  intent buffering, loan state, credit scoring                       │
+│  Dumb storage + fund movement. Stores encrypted intents,            │
+│  executes transfers via pool wallet when CRE tells it to.           │
+│  Cannot read encrypted rates.                                       │
 │                                                                     │
-│  Holds POOL_PRIVATE_KEY — a regular wallet on the external API.     │
-│  Moves funds via external private-transfer calls.                   │
+│  Holds POOL_PRIVATE_KEY — pool wallet on external API.              │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │  ConfidentialHTTPClient
                                │
 ┌──────────────────────────────▼──────────────────────────────────────┐
-│  CRE WORKFLOWS  (Chainlink Confidential Compute)                    │
+│  CRE  (Chainlink Confidential Compute) — THE BRAIN                  │
 │                                                                     │
-│  Pure HTTP cron triggers — no on-chain writes, no ABI encoding.     │
-│  epoch-settlement: POST /internal/run-auction   (every 5 min)       │
-│  liquidation:      POST /internal/check-loans   (every 60s)         │
+│  Holds CRE private key (eciesjs secp256k1).                         │
+│  Decrypts sealed rates. Runs matching engine.                       │
+│  Executes loans directly (disburse via external API).               │
+│  Records results back to server for bookkeeping.                    │
+│                                                                     │
+│  matching:    continuous — triggered on new intents                  │
+│  liquidation: POST /internal/check-loans (every 60s)                │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## How It Works — User Journey
+## Key Design Decisions
 
-### 1. On-chain setup (one-time)
-
-Deploy GhostToken, register it on the external vault, deposit tokens via on-chain tx.
-
-### 2. Deposit into GHOST
-
-User calls the external API `private-transfer` to send tokens to the GHOST pool wallet.
-Then POSTs to GHOST API `/deposit` with proof. API verifies incoming transfer, credits balance.
-
-### 3. Submit lending/borrowing intent
-
-- `POST /lend-intent` — sealed bid: amount, minRate, tranche (senior/junior)
-- `POST /borrow-intent` — sealed bid: amount, maxRate, collateral
-
-Intents buffered until epoch close. Nobody sees others' bids.
-
-### 4. Epoch settlement (CRE cron)
-
-Every 5 min CRE fires `POST /internal/run-auction`.
-API swaps double-buffers, runs uniform-price auction, matches lend↔borrow.
-Pool wallet disburses matched funds to borrowers via external `private-transfer`.
-
-### 5. Repayment
-
-Borrower does external `private-transfer` to pool → POSTs `POST /repay` to GHOST API.
-API verifies transfer, marks loan repaid, credits lender balance + interest.
-
-### 6. Withdrawal
-
-`POST /withdraw` → API calls external API `withdraw` from pool on behalf of user.
-Tokens return to user's on-chain wallet.
+| Dimension | Design | Why |
+|---|---|---|
+| Auction format | Discriminatory-price | Each lender earns their own rate. No gaming, no collusion. |
+| Bid visibility | Sealed (encrypted with CRE pubkey) | Rates hidden from server + other participants. Only CRE decrypts. |
+| Matching | Epoch-based batch | Borrows batched, sorted largest-K-first, matched against cheapest lends. Two-step accept/reject. |
+| Execution | CRE proposes, borrower confirms | CRE matches and proposes. Borrower has 5 min to accept/reject. Timeout = auto-accept. |
+| Pool structure | Global tick book | Lenders isolated — deposit at their rate, no awareness of borrowers. |
+| Borrower role | Submits borrow order with collateral | Accept/reject proposal. Reject = 5% collateral slashed, intent killed. |
 
 ---
 
-## Pool Wallet
-
-GHOST holds a single `POOL_PRIVATE_KEY` env var. This creates a regular wallet address on the external Compliant Private Transfer API. **All fund custody lives in the external vault** — GHOST never holds tokens directly.
-
-Pool operations:
-
-- **Receive deposits**: users `private-transfer` tokens to pool address
-- **Disburse loans**: pool `private-transfer` tokens to borrower
-- **Process withdrawals**: pool calls external API `withdraw` for user
-- **Check balance**: pool queries external API `balances`
-
----
-
-## API Server
-
-Hono HTTP server (Bun runtime). All private state in-memory.
-
-### Core Modules
-
-| Module           | File                      | Role                                                                                                                                        |
-| ---------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Config**       | `api/src/config.ts`       | Env vars: RPC_URL, CHAIN_ID, API_KEY, POOL_PRIVATE_KEY, EXTERNAL_API_URL, EXTERNAL_VAULT_ADDRESS, TOKEN_ADDRESS                             |
-| **Auth**         | `api/src/auth.ts`         | EIP-712 signature verification, timestamp window check                                                                                      |
-| **State**        | `api/src/state.ts`        | Singleton: balances, intents (double-buffered), loans, credit scores, shielded addresses                                                    |
-| **Pool**         | `api/src/pool.ts`         | Pool wallet ops: getPoolBalance, transferFromPool, verifyIncomingTransfer                                                                   |
-| **External API** | `api/src/external-api.ts` | Wraps external Compliant Private Transfer API: getBalance, privateTransfer, getTransactions, requestWithdrawTicket, generateShieldedAddress |
-| **Auction**      | `api/src/auction.ts`      | Sealed-bid matching engine: uniform-price, tranche waterfall                                                                                |
-| **Credit**       | `api/src/credit.ts`       | Credit scoring: +10 repay, -20 default, floor 0, cap 200                                                                                    |
-| **Types**        | `api/src/types.ts`        | Domain interfaces: LendIntent, BorrowIntent, Loan, Transaction, EpochResult                                                                 |
-
-### Routes
-
-**User-facing (POST, EIP-712 authed):**
-
-| Route                    | File                         | What it does                                             |
-| ------------------------ | ---------------------------- | -------------------------------------------------------- |
-| `POST /deposit`          | `routes/deposit.ts`          | Verify incoming private-transfer to pool, credit balance |
-| `POST /balances`         | `routes/balances.ts`         | Query private GHOST balances                             |
-| `POST /lend-intent`      | `routes/lend-intent.ts`      | Submit sealed lending bid                                |
-| `POST /borrow-intent`    | `routes/borrow-intent.ts`    | Submit sealed borrow bid                                 |
-| `POST /repay`            | `routes/repay.ts`            | Verify repayment transfer to pool, update loan           |
-| `POST /withdraw`         | `routes/withdraw.ts`         | Withdraw from GHOST → external API withdraw to user      |
-| `POST /shielded-address` | `routes/shielded-address.ts` | Generate unlinkable address                              |
-| `POST /positions`        | `routes/positions.ts`        | View active loans + pending intents                      |
-| `POST /transactions`     | `routes/transactions.ts`     | History with cursor pagination                           |
-| `GET /epoch`             | `routes/epoch.ts`            | Current epoch number + status (no auth)                  |
-| `GET /`                  | `index.ts`                   | Health check + pool address                              |
-
-**Internal (API-key authed, called by CRE):**
-
-| Route                        | File                 | What it does                                              |
-| ---------------------------- | -------------------- | --------------------------------------------------------- |
-| `POST /internal/run-auction` | `routes/internal.ts` | Swap buffers, run matching, disburse to borrowers         |
-| `POST /internal/check-loans` | `routes/internal.ts` | Return loans with health ratios, flag undercollateralized |
-
----
-
-## Sealed-Bid Auction Mechanism
+## Encryption Flow (eciesjs)
 
 ```
-Lend Intent: (amount, minRate, tranche)     Borrow Intent: (amount, maxRate, collateral)
-  Alice: 500 gUSDC, >=5%, Senior              Charlie: 600 gUSDC, <=10%, 2 gWETH
-  Bob:   300 gUSDC, >=8%, Junior
+CLIENT                              SERVER                         CRE
+──────                              ──────                         ───
+GET /cre-public-key                 returns secp256k1 pubkey
+                                    (NOT an ETH address)
 
-              Supply Curve                    Demand Curve
-  Rate ^                                Rate ^
-   10% |                                 10% | ########
-    8% |         #### (Bob Jr)            8% | ########
-    7% | - - - - - - - r* - - - -         7% | ######## <- clearing rate
-    5% | ######## (Alice Sr)              5% | ########
-       +-------------------> $              +-------------------> $
-       0   500    800                      0        600
+eciesjs.encrypt(pubkey, rate)
+POST /confirm { encryptedRate }     stores opaque blob
+                                    CANNOT read it
+                                                                   pulls encrypted intents
+                                                                   decrypts with privkey
+                                                                   sorts borrows largest-K-first
+                                                                   sorts lends cheapest-first
+                                                                   matches, checks blended rate
+                                    POST /internal/record-match-proposals ◄── proposals
+                                                                   borrower accepts/rejects
+                                                                   timeout → auto-accept
+```
 
-  Clearing rate r* = 7% (maximizes matched volume at $600)
+CRE keypair is secp256k1 (eciesjs). Server serves the public key. Only CRE has the private key.
 
-  Senior (Alice): 500 matched first, lower effective risk
-  Junior (Bob):   100 matched, absorbs losses first, higher yield
-  Charlie:        600 borrowed at 7% uniform rate
+---
 
-  Tranche waterfall on default:
-    Loss -> Junior absorbs first -> then Senior
+## How It Works
+
+### Lender Flow (isolated, no awareness of borrowers)
+
+**User actions: 3 sigs first time, 2 returning**
+
+| Step | Action | Sig? |
+|------|--------|------|
+| Approve vault | ERC20 approve (one-time) | On-chain tx |
+| Deposit to vault | vault.deposit() | On-chain tx |
+| Init | POST /deposit-lend/init { account, token, amount } — no auth | None |
+| Private transfer | Transfer to shielded address (external API) | EIP-712 |
+| Confirm | POST /deposit-lend/confirm { encryptedRate } | EIP-712 |
+
+After confirm, lender's funds sit in the global tick book at their encrypted rate. Withdrawable anytime until matched.
+
+**Cancel (pre-match): 1 sig**
+- POST /cancel-lend → pool transfers funds back to user's vault via private-transfer
+
+### Borrower Flow
+
+**User actions: collateral deposit + submit + accept/reject**
+
+| Step | Action | Sig? |
+|------|--------|------|
+| Post collateral | Private-transfer collateral to pool | EIP-712 |
+| Submit borrow | POST /borrow-intent { K, maxRate (encrypted), token, collateral } | EIP-712 |
+| Accept/Reject | POST /accept-proposal or /reject-proposal | EIP-712 |
+
+**Epoch matching (CRE cron):**
+1. CRE pulls all pending borrows + active lends
+2. Sorts borrows largest-K-first, lends cheapest-rate-first
+3. For each borrow: fills from cheapest lends until K reached, only if blended rate ≤ maxRate
+4. Locks matched lend ticks, pushes proposals to server
+
+**Between epochs (borrower action window — 5 min):**
+- **Accept** → loan created, principal disbursed, lend ticks consumed
+- **Reject** → 5% collateral slashed (stays in pool), 95% returned, intent killed, lend ticks freed for next epoch
+- **No response (timeout)** → auto-accepted after 5 min
+
+**If insufficient liquidity:**
+- Borrow intent stays pending until next epoch
+
+### Matching Engine (inside CRE — epoch-based)
+
+```
+EPOCH N:
+  Borrows sorted largest-K-first:
+    Charlie  600k max 7%
+    Eve      200k max 6%
+
+  Lends sorted cheapest-rate-first:
+    Alice  500k @ 5%
+    Dave   100k @ 5.5%
+    Carol  200k @ 6%
+    Bob    300k @ 8%
+
+  Charlie (600k, max 7%):
+    Alice  500k @ 5%    ✓
+    Dave   100k @ 5.5%  ✓  → 600k filled
+    Blended rate = (500k*5% + 100k*5.5%) / 600k = 5.08% ≤ 7% ✓
+    → Proposal created, lend ticks locked
+
+  Eve (200k, max 6%):
+    Carol  200k @ 6%    ✓  → 200k filled
+    Blended rate = 6% ≤ 6% ✓
+    → Proposal created
+
+BETWEEN EPOCHS (5 min window):
+  Charlie accepts → loan created, K disbursed
+  Eve rejects → 5% collateral slashed, Carol's tick freed
+
+EPOCH N+1:
+  Carol's 200k @ 6% available again + any new intents
+```
+
+### Reject Penalty
+
+- **Reject valid proposal** → 5% collateral slashed (stays in pool), intent killed, matched lend ticks freed
+- **No response (5 min timeout)** → auto-accepted
+- **Cancel before proposal** → full collateral returned
+
+### Repayment
+
+1. Borrower private-transfers payment to pool
+2. Borrower POSTs /repay to GHOST API
+3. Server credits matched lenders at their **individual tick rates** (discriminatory)
+4. On full repayment → collateral released back to borrower via private-transfer
+
+### Liquidation
+
+```
+CRE CronTrigger (every 60s)
+  → Pull active loans from server
+  → Check collateral value vs loan value
+  → If undercollateralized:
+      Seize collateral
+      Higher-rate ticks absorb losses first (riskier lenders)
+      Lower-rate ticks protected
 ```
 
 ---
@@ -167,108 +192,257 @@ Lend Intent: (amount, minRate, tranche)     Borrow Intent: (amount, maxRate, col
 ## Token Flow
 
 ```
-DEPOSIT PHASE (external API private-transfer)
-  Alice --500 tokens--> pool wallet     (private-transfer to pool)
-  Alice --> POST /deposit to GHOST API  (verify + credit balance)
-  Bob   --300 tokens--> pool wallet
-  Charlie--collateral-> pool wallet
+LENDER DEPOSITS
+  Alice --vault.deposit()--> on-chain vault
+  Alice --private-transfer-> pool shielded address
+  Alice --POST /confirm----> server stores encrypted rate in global tick book
 
-SETTLEMENT PHASE (CRE cron -> /internal/run-auction)
-  Auction matches 600 lent -> 600 borrowed
-  Pool --600 tokens--> Charlie           (private-transfer from pool)
+BORROWER ARRIVES
+  Charlie --private-transfer-> pool (collateral)
+  Charlie --POST /borrow-intent { K, encryptedMaxRate }
 
-REPAYMENT PHASE
-  Charlie --630 tokens--> pool wallet    (600 principal + 30 interest)
-  Charlie --> POST /repay to GHOST API   (verify + update loan)
+CRE EPOCH MATCHING
+  CRE decrypts all rates
+  CRE sorts borrows largest-K-first, lends cheapest-first
+  CRE fills lend ticks to K, checks blended rate ≤ maxRate
+  CRE: POST /internal/record-match-proposals to server
 
-WITHDRAWAL PHASE
-  Alice --> POST /withdraw to GHOST API
-  Pool calls external API withdraw -> 521 tokens to Alice on-chain
-  Bob --> POST /withdraw -> 109 tokens to Bob on-chain
-  Charlie --> POST /withdraw -> collateral returned on-chain
+BORROWER ACCEPTS/REJECTS (5 min window)
+  Charlie --POST /accept-proposal  → loan created, K disbursed
+  Charlie --POST /reject-proposal  → 5% slashed, 95% returned, lend ticks freed
+  (timeout)                        → auto-accepted
+
+REPAYMENT
+  Charlie --private-transfer--> pool (principal + interest)
+  Charlie --POST /repay
+  Server credits Alice at 5%, Dave at 5.5% (their tick rates)
+  Server returns collateral to Charlie
+
+CANCEL (lender, pre-match)
+  Alice --POST /cancel-lend
+  Pool --private-transfer--> Alice (funds returned to vault balance)
 
 LIQUIDATION (alternate path)
-  If collateral value drops below threshold
-  CRE /internal/check-loans detects unhealthy loan
-  Pool seizes collateral -> Junior absorbs loss first -> Senior protected
+  CRE detects unhealthy loan
+  Seize collateral → higher-rate ticks absorb loss first
 ```
+
+---
+
+## Pool Wallet
+
+Single `POOL_PRIVATE_KEY`. All fund custody lives in the external vault — GHOST never holds tokens directly. Pool wallet operations:
+
+- **Receive**: users private-transfer tokens to pool's shielded addresses
+- **Disburse**: CRE triggers pool private-transfer to borrower on match
+- **Return**: pool private-transfer back to user on cancel/repayment
+- **Balance**: query via external API
+
+---
+
+## API Server
+
+Hono + Bun. Dumb storage layer. Cannot decrypt rates.
+
+### User-Facing Routes
+
+| Route | Auth | What it does |
+|---|---|---|
+| `POST /deposit-lend/init` | None | Generate shielded address, create pending deposit slot |
+| `POST /deposit-lend/confirm` | EIP-712 | Store encrypted rate, credit internal balance, add to global tick book |
+| `POST /cancel-lend` | EIP-712 | Pool transfers funds back to user, remove intent |
+| `POST /borrow-intent` | EIP-712 | Store encrypted borrow order with collateral refs |
+| `POST /cancel-borrow` | EIP-712 | Cancel pending borrow intent, return collateral |
+| `POST /accept-proposal` | EIP-712 | Accept match proposal → create loan, disburse principal |
+| `POST /reject-proposal` | EIP-712 | Reject proposal → 5% slash, 95% returned, lend ticks freed |
+| `POST /repay` | EIP-712 | Full repay, credit lenders at discriminatory rates, release collateral |
+| `GET /health` | None | Status + pool address |
+| `GET /cre-public-key` | None | eciesjs secp256k1 public key for rate encryption |
+
+### Internal Routes (called by CRE)
+
+| Route | What it does |
+|---|---|
+| `GET /internal/pending-intents` | CRE pulls active lends (not locked) + pending borrows |
+| `POST /internal/record-match-proposals` | CRE pushes batch of match proposals after epoch |
+| `POST /internal/expire-proposals` | Auto-accept proposals past 5 min deadline |
+| `POST /internal/check-loans` | Returns active loans for liquidation check |
 
 ---
 
 ## CRE Workflows
 
-Pure HTTP triggers. No on-chain writes, no ABI encoding, no EVMClient.
-
-### Epoch Settlement (`cre/src/workflows/epoch-settlement/`)
+### Matching (epoch-based)
 
 ```
-CronTrigger (every 5 min)
-  -> ConfidentialHTTPClient POST /internal/run-auction
-     (request/response encrypted — individual DON nodes can't see it)
-  -> API swaps intent buffers, runs auction, disburses via external API
-  -> Returns: { epochId, clearingRate, totalMatched, seniorMatched, juniorMatched }
-  -> If totalMatched == 0, skip
+CRE CronTrigger (epoch interval):
+  1. POST /internal/expire-proposals  (auto-accept timed-out proposals first)
+  2. GET /internal/pending-intents    (active lends not locked + pending borrows)
+  3. Decrypt all rates (eciesjs privkey)
+  4. Sort borrows largest-K-first
+  5. Sort lends cheapest-rate-first
+  6. For each borrow:
+       Fill from cheapest lends until K reached
+       Only if blended rate ≤ borrower's maxRate
+       Lock matched lend ticks (status → "proposed")
+  7. POST /internal/record-match-proposals  (push proposals to server)
+  8. Borrowers have 5 min to accept/reject
+       Accept → loan created, funds disbursed
+       Reject → 5% slash, lend ticks freed
+       Timeout → auto-accepted next epoch
 ```
 
-### Liquidation Monitor (`cre/src/workflows/liquidation/`)
+### Liquidation Monitor
 
 ```
 CronTrigger (every 60s)
-  -> ConfidentialHTTPClient POST /internal/check-loans
-  -> API checks all loans against collateral prices
-  -> Returns: { loans[], unhealthy[] }
-  -> If unhealthy.length > 0, liquidation handled API-side
+  → GET /internal/check-loans from server
+  → Check collateral value vs loan value
+  → If unhealthy:
+      Seize collateral via pool wallet
+      Distribute to lenders (higher-rate ticks absorb loss first)
+      POST /internal/record-loans with updated state
 ```
 
-### Why CRE matters
+### Why CRE
 
-1. **ConfidentialHTTPClient** — HTTP calls encrypted end-to-end. Individual DON nodes can't see bids, loans, or balances.
-2. **Vault DON Secrets** — `GHOST_API_KEY` stored as threshold-encrypted secret. No single node knows the full key.
-3. **Decentralized cron** — settlement and monitoring run reliably without centralized infrastructure.
+1. **Only CRE can read rates** — encrypted with its public key, decrypted only inside confidential compute
+2. **ConfidentialHTTPClient** — HTTP calls encrypted end-to-end, individual DON nodes can't see data
+3. **Vault DON Secrets** — CRE private key stored as threshold-encrypted secret
+4. **Executes directly** — CRE doesn't ask server to match; it matches and disburses itself
 
 ---
 
 ## Privacy Model
 
-| Data                                       | On-Chain (Public)    | GHOST API (Private)      |
-| ------------------------------------------ | -------------------- | ------------------------ |
-| Token deploy + vault registration          | Visible              | —                        |
-| Vault deposits (into external vault)       | Visible (deposit tx) | —                        |
-| Private transfers (deposit/repay/disburse) | Hidden               | Known                    |
-| Individual GHOST balances                  | Hidden               | Tracked per user         |
-| Bid rates & amounts                        | Hidden               | Decrypted at epoch close |
-| Who lent to whom                           | Hidden               | Known                    |
-| Loan terms & health                        | Hidden               | Monitored                |
-| Liquidation events                         | Hidden               | Handled API-side         |
+| Data | On-Chain (Public) | GHOST Server | CRE |
+|---|---|---|---|
+| Vault deposits | Visible | — | — |
+| Private transfers | Hidden | Known | Known |
+| GHOST balances | Hidden | Tracked | — |
+| Lender rates | Hidden | Encrypted blob | **Decrypted** |
+| Borrower max rate | Hidden | Encrypted blob | **Decrypted** |
+| Who lent to whom | Hidden | Recorded post-match | Known at match |
+| Loan terms | Hidden | Recorded | Known |
+| Liquidation | Hidden | Updated by CRE | Detected + executed |
 
-**Key insight**: On-chain only sees token deploys and vault deposits. Everything else — individual transfers, balances, intents, loans, settlements, liquidations — is private within the external API + GHOST API layer.
+**Key insight**: The server never sees plaintext rates. It stores encrypted blobs and executes fund movements. All rate logic lives inside CRE's confidential compute boundary.
+
+---
+
+## State
+
+```typescript
+// Global lend tick book (rates encrypted, only CRE reads plaintext)
+interface LendIntent {
+  intentId: string
+  userId: string
+  token: string
+  amount: bigint
+  encryptedRate: string        // eciesjs ciphertext, opaque to server
+  shieldedAddress: string
+  status: 'active' | 'matched' | 'cancelled'
+  createdAt: number
+}
+
+// Borrow orders
+interface BorrowIntent {
+  intentId: string
+  borrower: string
+  token: string
+  amount: bigint               // K — target loan amount
+  encryptedMaxRate: string     // eciesjs ciphertext
+  collateralToken: string
+  collateralAmount: bigint
+  status: 'pending' | 'proposed' | 'matched' | 'cancelled' | 'rejected'
+  createdAt: number
+}
+
+// Match proposal (CRE creates after epoch matching, borrower accepts/rejects)
+interface MatchProposal {
+  proposalId: string
+  borrowIntentId: string
+  borrower: string
+  token: string
+  principal: bigint
+  matchedTicks: MatchedTick[]
+  effectiveBorrowerRate: number
+  collateralToken: string
+  collateralAmount: bigint
+  status: 'pending' | 'accepted' | 'rejected' | 'expired'
+  createdAt: number
+  expiresAt: number            // createdAt + 5 min
+}
+
+// Loan (created on proposal accept or timeout auto-accept)
+interface Loan {
+  loanId: string
+  borrower: string
+  token: string
+  principal: bigint
+  matchedTicks: MatchedTick[]  // discriminatory: each lender's rate preserved
+  effectiveBorrowerRate: number
+  collateralToken: string
+  collateralAmount: bigint
+  maturity: number
+  status: 'active' | 'repaid' | 'defaulted'
+  repaidAmount: bigint
+}
+
+interface MatchedTick {
+  lender: string
+  lendIntentId: string
+  amount: bigint
+  rate: number                 // plaintext, written by CRE post-match
+}
+
+// Deposit slot (shielded address lifecycle)
+interface DepositSlot {
+  shieldedAddress: string
+  userId: string
+  token: string
+  amount: bigint
+  status: 'pending' | 'confirmed' | 'cancelled'
+  encryptedRate?: string
+  createdAt: number            // 10min TTL for pending slots
+}
+```
 
 ---
 
 ## Chainlink Services Used
 
-| Service                            | How GHOST Uses It                                                                 |
-| ---------------------------------- | --------------------------------------------------------------------------------- |
-| **CRE Workflows**                  | Epoch settlement (CronTrigger 5min), liquidation monitoring (CronTrigger 60s)     |
-| **CRE ConfidentialHTTPClient**     | Calls GHOST API privately — request/response hidden from nodes                    |
-| **CRE Vault DON Secrets**          | API key as threshold-encrypted secret, injected via `{{.GHOST_API_KEY}}` template |
-| **ACE (PolicyEngine)**             | Compliance check on token deposits to external vault                              |
-| **Compliant Private Transfer API** | Base layer: private transfers, balances, withdrawals, shielded addresses          |
+| Service | How GHOST Uses It |
+|---|---|
+| **CRE Workflows** | Matching (continuous), liquidation monitoring (60s cron) |
+| **CRE ConfidentialHTTPClient** | All CRE↔server and CRE↔external API calls encrypted end-to-end |
+| **CRE Vault DON Secrets** | CRE eciesjs private key as threshold-encrypted secret |
+| **ACE (PolicyEngine)** | Compliance check on token deposits to external vault |
+| **Compliant Private Transfer API** | Base layer: private transfers, balances, withdrawals, shielded addresses |
 
 ---
 
-## Double Buffer: Zero Downtime
+## Environment Variables
 
-```
-Epoch 1:  [Collecting intents...]  [Auction + Settlement]  [Done]
-Epoch 2:              [Collecting intents...]  [Auction + Settlement]
-Epoch 3:                          [Collecting intents...]
-                      ^                        ^
-                 Epoch 1 closes           Epoch 2 closes
-                 Epoch 2 ALREADY open     Epoch 3 ALREADY open
-```
+### GHOST Server (`server/.env`)
 
-At any moment there's always an open buffer accepting intents. Users never wait.
+| Var | Description |
+|---|---|
+| `POOL_PRIVATE_KEY` | Pool wallet private key (required) |
+| `TOKEN_ADDRESS` | Deployed token address (required) |
+| `CRE_PUBLIC_KEY` | eciesjs secp256k1 public key for rate encryption (required) |
+| `EXTERNAL_API_URL` | External API base URL (default: convergence2026-token-api.cldev.cloud) |
+| `EXTERNAL_VAULT_ADDRESS` | External vault contract (default: 0xE588...) |
+| `CHAIN_ID` | Chain ID (default: 11155111) |
+| `PORT` | Server port (default: 3000) |
+| `INTERNAL_API_KEY` | API key for CRE internal routes (optional) |
+
+### CRE Secrets (Vault DON)
+
+| Secret | Description |
+|---|---|
+| `CRE_PRIVATE_KEY` | eciesjs secp256k1 private key for decrypting sealed rates |
+| `POOL_PRIVATE_KEY` | Pool wallet key for executing transfers |
 
 ---
 
@@ -276,93 +450,39 @@ At any moment there's always an open buffer accepting intents. Users never wait.
 
 ```
 ghost/
-├── ARCHITECTURE.md                  <- this file
+├── ARCHITECTURE.md
 │
-├── api/                             <- GHOST API Server (Hono + Bun)
-│   ├── package.json
-│   ├── bunfig.toml
-│   ├── tsconfig.json
-│   └── src/
-│       ├── index.ts                 <- Hono server entry, route mounting
-│       ├── config.ts                <- Env vars + defaults
-│       ├── auth.ts                  <- EIP-712 signature verification
-│       ├── state.ts                 <- Private state (balances, intents, loans)
-│       ├── pool.ts                  <- Pool wallet ops via external API
-│       ├── external-api.ts          <- Wraps external Compliant Private Transfer API
-│       ├── auction.ts               <- Sealed-bid auction matching engine
-│       ├── credit.ts                <- Credit score computation
-│       ├── types.ts                 <- Domain interfaces
-│       └── routes/
-│           ├── deposit.ts           <- POST /deposit
-│           ├── balances.ts          <- POST /balances
-│           ├── lend-intent.ts       <- POST /lend-intent
-│           ├── borrow-intent.ts     <- POST /borrow-intent
-│           ├── repay.ts             <- POST /repay
-│           ├── withdraw.ts          <- POST /withdraw
-│           ├── shielded-address.ts  <- POST /shielded-address
-│           ├── positions.ts         <- POST /positions
-│           ├── transactions.ts      <- POST /transactions
-│           ├── epoch.ts             <- GET /epoch
-│           └── internal.ts          <- POST /internal/run-auction, /check-loans
-│
-├── contracts/                       <- Solidity (Foundry) — token only
-│   ├── foundry.toml
-│   ├── remappings.txt
+├── server/                          ← GHOST API Server (Hono + Bun)
 │   ├── src/
-│   │   └── GhostToken.sol           <- ERC20 test token
-│   └── script/
-│       ├── 01_DeployToken.s.sol      <- Deploy GhostToken
-│       ├── 02_DeployPolicyEngine.s.sol <- Deploy ACE PolicyEngine
-│       └── SetupAll.s.sol            <- All-in-one deployment
+│   │   ├── index.ts                 ← entry, health, /cre-public-key
+│   │   ├── config.ts                ← env vars
+│   │   ├── auth.ts                  ← EIP-712 verify (Confirm Deposit, Cancel Lend)
+│   │   ├── state.ts                 ← balances, deposit slots, intents, loans
+│   │   ├── types.ts                 ← LendIntent, BorrowIntent, Loan, DepositSlot
+│   │   ├── external-api.ts          ← wraps external API: shielded-address, transfer, balance, withdraw
+│   │   ├── controllers/
+│   │   │   ├── lend.controllers.ts      ← initDepositLend, confirmDepositLend, cancelLend
+│   │   │   ├── borrow.controllers.ts    ← submitBorrowIntent, cancelBorrow, acceptProposal, rejectProposal
+│   │   │   ├── internal.controllers.ts  ← getPendingIntents, recordMatchProposals, expireProposals, checkLoans
+│   │   │   └── repay.controllers.ts     ← repayLoan
+│   │   └── routes/
+│   │       └── ghost.routes.ts      ← route mounting
+│   ├── scripts/
+│   │   └── real-flow-test.ts        ← end-to-end integration test
+│   └── src/__tests__/
+│       └── lend.test.ts             ← unit tests (real external API)
 │
-├── cre/                             <- CRE Workflows (TypeScript)
-│   ├── package.json
-│   ├── tsconfig.json
+├── ghost-cre/                       ← CRE Workflows
 │   └── src/workflows/
-│       ├── epoch-settlement/
-│       │   ├── index.ts             <- ConfidentialHTTP -> /internal/run-auction
-│       │   ├── config.json
-│       │   └── workflow.yaml
-│       └── liquidation/
-│           ├── index.ts             <- ConfidentialHTTP -> /internal/check-loans
-│           ├── config.json
-│           └── workflow.yaml
+│       ├── matching/                ← decrypts rates, matches, disburses
+│       └── liquidation/             ← checks loan health, seizes collateral
 │
-└── scripts/                         <- CLI tools (Bun + ethers.js)
-    ├── package.json
-    ├── tsconfig.json
-    └── src/
-        ├── common.ts                <- Wallet, EIP-712 helpers, API POST helper
-        ├── setup-pool.ts            <- Register pool wallet on external vault
-        ├── deposit-lend.ts          <- Deposit to external vault + transfer to pool + lend intent
-        ├── deposit-borrow.ts        <- Deposit collateral + transfer to pool + borrow intent
-        ├── repay.ts                 <- Transfer repayment to pool + notify API
-        ├── withdraw.ts              <- Request withdrawal from GHOST
-        ├── check-balances.ts        <- Query GHOST balances
-        └── check-positions.ts       <- Query active positions
+└── transfer-demo/                   ← Solidity (Foundry) — token + vault scripts
+    └── script/
+        ├── 01_DeployToken.s.sol
+        ├── 04_ApproveVault.s.sol
+        ├── 05_RegisterVault.s.sol
+        ├── 06_DepositToVault.s.sol
+        ├── 07_WithdrawWithTicket.s.sol
+        └── SetupAll.s.sol
 ```
-
----
-
-## Environment Variables
-
-### GHOST API (`ghost/api/.env`)
-
-| Var                      | Description                                                                      |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `POOL_PRIVATE_KEY`       | Private key for pool wallet (required)                                           |
-| `TOKEN_ADDRESS`          | Deployed GhostToken address (required)                                           |
-| `EXTERNAL_API_URL`       | External API base URL (default: `https://convergence2026-token-api.cldev.cloud`) |
-| `EXTERNAL_VAULT_ADDRESS` | External vault contract (default: `0xE588...`)                                   |
-| `RPC_URL`                | Sepolia RPC (default: `http://127.0.0.1:8545`)                                   |
-| `CHAIN_ID`               | Chain ID (default: `11155111`)                                                   |
-| `API_KEY`                | Key for CRE internal endpoints                                                   |
-| `PORT`                   | Server port (default: `3000`)                                                    |
-
-### CLI Scripts (`ghost/scripts/.env`)
-
-| Var             | Description             |
-| --------------- | ----------------------- |
-| `PRIVATE_KEY`   | User wallet private key |
-| `GHOST_API_URL` | GHOST API server URL    |
-| `TOKEN_ADDRESS` | GhostToken address      |

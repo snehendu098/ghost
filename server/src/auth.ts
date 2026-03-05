@@ -20,6 +20,36 @@ export const MESSAGE_TYPES = {
     { name: "shieldedAddress", type: "address" },
     { name: "timestamp", type: "uint256" },
   ],
+  "Submit Borrow": [
+    { name: "account", type: "address" },
+    { name: "token", type: "address" },
+    { name: "amount", type: "uint256" },
+    { name: "collateralToken", type: "address" },
+    { name: "collateralAmount", type: "uint256" },
+    { name: "encryptedMaxRate", type: "string" },
+    { name: "timestamp", type: "uint256" },
+  ],
+  "Cancel Borrow": [
+    { name: "account", type: "address" },
+    { name: "intentId", type: "string" },
+    { name: "timestamp", type: "uint256" },
+  ],
+  "Accept Proposal": [
+    { name: "account", type: "address" },
+    { name: "proposalId", type: "string" },
+    { name: "timestamp", type: "uint256" },
+  ],
+  "Reject Proposal": [
+    { name: "account", type: "address" },
+    { name: "proposalId", type: "string" },
+    { name: "timestamp", type: "uint256" },
+  ],
+  "Repay Loan": [
+    { name: "account", type: "address" },
+    { name: "loanId", type: "string" },
+    { name: "amount", type: "uint256" },
+    { name: "timestamp", type: "uint256" },
+  ],
 } satisfies Record<string, ethers.TypedDataField[]>;
 
 const FIVE_MINUTES = 5 * 60;

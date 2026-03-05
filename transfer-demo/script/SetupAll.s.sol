@@ -32,7 +32,7 @@ contract SetupAll is Script {
         vm.startBroadcast(deployerPK);
 
         // 1. Deploy SimpleToken ERC20
-        SimpleToken token = new SimpleToken("Ghost USD", "gUSD", deployer);
+        SimpleToken token = new SimpleToken("Ghost ETH", "gETH", deployer);
         console.log("1) SimpleToken deployed at:", address(token));
 
         // 2. Deploy PolicyEngine (behind proxy)
@@ -47,7 +47,7 @@ contract SetupAll is Script {
         console.log("   PolicyEngine proxy deployed at:", address(proxy));
 
         // 3. Mint 100 tokens to deployer
-        uint256 mintAmount = 100 ether;
+        uint256 mintAmount = 1000 ether;
         token.mint(deployer, mintAmount);
         console.log("3) Minted 100 tokens to:", deployer);
 
@@ -60,7 +60,7 @@ contract SetupAll is Script {
         console.log("5) Registered token and PolicyEngine on vault");
 
         // 6. Deposit 10 tokens into Vault
-        uint256 depositAmount = 10 ether;
+        uint256 depositAmount = 100 ether;
         IVault(VAULT).deposit(address(token), depositAmount);
         console.log("6) Deposited 10 tokens into vault");
 
