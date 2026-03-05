@@ -2,8 +2,11 @@ import { Hono } from "hono";
 import ghostRoute from "./routes/ghost.routes";
 import { getPoolAddress } from "./external-api";
 import { config } from "./config";
+import { cors } from "hono/cors";
 
 const app = new Hono();
+
+app.use(cors());
 
 app.get("/health", (c) => {
   return c.json({

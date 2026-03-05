@@ -3,6 +3,7 @@
 import { useState } from "react";
 import TabSwitcher from "./TabSwitcher";
 import BorrowCard from "../borrow/BorrowCard";
+import LendCard from "../lend/LendCard";
 import { SwapTab, MigrateTab, UnstakeTab } from "./tabs";
 
 const StakePage = () => {
@@ -26,10 +27,23 @@ const StakePage = () => {
           <BorrowCard />
         </div>
       )}
+      {activeTab === "Lend" && (
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-medium text-foreground">
+              Lend privately on GHOST
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Set your rate, deposit funds. Rates are sealed — only matched inside
+              CRE confidential compute.
+            </p>
+          </div>
+          <LendCard />
+        </div>
+      )}
       {activeTab === "Swap" && <SwapTab />}
       {activeTab === "Migrate" && <MigrateTab />}
       {activeTab === "Unstake" && <UnstakeTab />}
-      {activeTab === "Lend" && <LendTab />}
     </div>
   );
 };
