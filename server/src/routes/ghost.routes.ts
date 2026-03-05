@@ -97,11 +97,18 @@ ghostRoute.get("/collateral-quote", async (c: Context) => {
 ghostRoute.get("/lender-status/:address", (c: Context) => {
   const addr = c.req.param("address").toLowerCase();
 
+  // Build intentId → slotId lookup
+  const intentToSlot = new Map<string, string>();
+  for (const [slotId, slot] of state.depositSlots) {
+    if (slot.intentId) intentToSlot.set(slot.intentId, slotId);
+  }
+
   // Active lend intents
   const activeLends = [...state.activeBuffer.values()]
     .filter((i) => i.userId === addr)
     .map((i) => ({
       intentId: i.intentId,
+      slotId: intentToSlot.get(i.intentId) ?? "",
       token: i.token,
       amount: i.amount.toString(),
       createdAt: i.createdAt,

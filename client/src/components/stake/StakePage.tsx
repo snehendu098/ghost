@@ -29,6 +29,7 @@ const StakePage = () => {
       {activeTab === "Swap" && <SwapTab />}
       {activeTab === "Migrate" && <MigrateTab />}
       {activeTab === "Unstake" && <UnstakeTab />}
+      {activeTab === "Lend" && <LendTab />}
     </div>
   );
 };
