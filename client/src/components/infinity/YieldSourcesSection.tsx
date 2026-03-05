@@ -1,8 +1,8 @@
 const sources = [
-  { label: "Inflation", sublabel: "Native Staking", value: "7.08%", width: "w-[40%]", color: "bg-blue-600" },
-  { label: "MEV", sublabel: "", value: "2.98%", width: "w-[20%]", color: "bg-slate-700" },
-  { label: "Block Rewards", sublabel: "Oracle Staking", value: "3.17%", width: "w-[22%]", color: "bg-teal-600" },
-  { label: "Trading Fees", sublabel: "", value: "", width: "w-[18%]", color: "bg-purple-600" },
+  { label: "Sealed Rates", sublabel: "eciesjs encryption", value: "Private", width: "w-[30%]", color: "bg-indigo-600" },
+  { label: "CRE Matching", sublabel: "Chainlink Confidential", value: "Secure", width: "w-[25%]", color: "bg-teal-600" },
+  { label: "Credit Tiers", sublabel: "On-chain reputation", value: "Fair", width: "w-[22%]", color: "bg-purple-600" },
+  { label: "On-Chain Settlement", sublabel: "Vault + ERC-20", value: "Trustless", width: "w-[23%]", color: "bg-blue-600" },
 ];
 
 const YieldSourcesSection = () => {
@@ -10,16 +10,16 @@ const YieldSourcesSection = () => {
     <section className="w-full py-16 space-y-10">
       {/* Header */}
       <div className="text-center space-y-3">
-        <span className="text-sm font-semibold text-emerald-400">Unmatched</span>
+        <span className="text-sm font-semibold text-emerald-400">Architecture</span>
         <h2 className="text-3xl font-semibold text-foreground">
-          Where INF&apos;s Yield Comes From
+          How Ghost Keeps Lending Private
         </h2>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          See how INF gives you the most rewards on your SOL.
+          Four layers of privacy and fairness power every Ghost loan.
         </p>
       </div>
 
-      {/* Yield bar chart */}
+      {/* Bar chart */}
       <div className="rounded-2xl border border-border bg-card p-8 space-y-6">
         {/* Labels row */}
         <div className="flex items-end">
@@ -32,19 +32,14 @@ const YieldSourcesSection = () => {
 
         {/* Bars */}
         <div className="flex items-end gap-2 h-32">
-          {sources.map((s) => (
+          {sources.map((s, i) => (
             <div key={s.label} className={`${s.width} flex flex-col items-center gap-2`}>
               <div
                 className={`w-full rounded-xl ${s.color} flex items-center justify-center ${
-                  s.label === "Inflation" ? "h-32" : s.label === "Block Rewards" ? "h-24" : s.label === "MEV" ? "h-20" : "h-28"
+                  i === 0 ? "h-32" : i === 1 ? "h-28" : i === 2 ? "h-24" : "h-28"
                 }`}
               >
-                {s.value && (
-                  <span className="text-sm font-semibold text-white">{s.value}</span>
-                )}
-                {!s.value && (
-                  <span className="text-lg">⚡</span>
-                )}
+                <span className="text-sm font-semibold text-white">{s.value}</span>
               </div>
             </div>
           ))}
@@ -62,7 +57,7 @@ const YieldSourcesSection = () => {
         </div>
 
         <p className="text-center text-xs text-emerald-400 cursor-pointer hover:underline">
-          For illustration purposes only
+          Read the full architecture docs
         </p>
       </div>
     </section>

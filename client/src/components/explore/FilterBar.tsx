@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Search, ChevronDown } from "lucide-react";
 
-const filters = ["LST Type", "APY", "SOL Staked", "Holders"];
+const filters = ["Token", "Network", "Status"];
 
 const FilterBar = () => {
   const [search, setSearch] = useState("");
@@ -28,7 +28,7 @@ const FilterBar = () => {
         <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         <input
           type="text"
-          placeholder="Search LST name or symbol"
+          placeholder="Search pool name or symbol"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none w-48"

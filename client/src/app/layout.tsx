@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
-import { NavigationProvider } from "@/components/providers/navigation-provider";
 import PrivyProviderWrapper from "@/components/providers/privy-provider";
 import CoreLayout from "@/components/layouts/CoreLayout";
 
@@ -32,9 +31,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <NavigationProvider>
               <CoreLayout>{children}</CoreLayout>
-            </NavigationProvider>
           </ThemeProvider>
         </PrivyProviderWrapper>
       </body>

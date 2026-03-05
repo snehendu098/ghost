@@ -86,6 +86,22 @@ export const CANCEL_LEND_TYPES = {
   ],
 };
 
+export const CANCEL_BORROW_TYPES = {
+  "Cancel Borrow": [
+    { name: "account", type: "address" },
+    { name: "intentId", type: "string" },
+    { name: "timestamp", type: "uint256" },
+  ],
+};
+
+export const CLAIM_EXCESS_COLLATERAL_TYPES = {
+  "Claim Excess Collateral": [
+    { name: "account", type: "address" },
+    { name: "loanId", type: "string" },
+    { name: "timestamp", type: "uint256" },
+  ],
+};
+
 export type Coin = { symbol: string; name: string; address: string };
 
 export const COINS: Coin[] = [
