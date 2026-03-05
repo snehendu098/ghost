@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ethers } from "ethers";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, ArrowDownUp } from "lucide-react";
 import CoinSelector from "./CoinSelector";
 import {
   COINS,
@@ -13,7 +13,10 @@ import {
   VAULT_ABI,
   GHOST_DOMAIN,
   BORROW_TYPES,
+  CANCEL_BORROW_TYPES,
   fetchPoolAddress,
+  gUSD,
+  gETH,
   type Coin,
 } from "@/lib/constants";
 import { encryptRate, get, post, privateTransfer, toWei, ts } from "@/lib/ghost";
@@ -29,6 +32,38 @@ const STATUS_LABELS: Record<Status, string> = {
   done: "Borrow intent submitted!",
   error: "Something went wrong",
 };
+
+interface BorrowIntent {
+  intentId: string;
+  token: string;
+  amount: string;
+  collateralToken: string;
+  collateralAmount: string;
+  status: string;
+  createdAt: number;
+}
+
+const formatAmount = (wei: string) => {
+  const num = Number(wei) / 1e18;
+  return num.toLocaleString(undefined, { maximumFractionDigits: 5 });
+};
+
+const tokenSymbol = (addr: string) => {
+  const lower = addr.toLowerCase();
+  if (lower === gUSD.toLowerCase()) return "gUSD";
+  if (lower === gETH.toLowerCase()) return "gETH";
+  return addr.slice(0, 6) + "...";
+};
+
+function friendlyError(err: unknown): string {
+  if (!(err instanceof Error)) return "Transaction failed";
+  const e = err as any;
+  const code = e?.code ?? e?.info?.error?.code;
+  if (code === "ACTION_REJECTED" || code === 4001) return "Transaction rejected";
+  if (e?.code === "INSUFFICIENT_FUNDS") return "Insufficient funds";
+  const msg = e?.shortMessage ?? e?.reason ?? e?.message ?? "Something went wrong";
+  return msg.length > 120 ? msg.slice(0, 120) + "..." : msg;
+}
 
 const BorrowCard = () => {
   const { authenticated, login } = usePrivy();
@@ -61,8 +96,24 @@ const BorrowCard = () => {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [intentId, setIntentId] = useState("");
+  const [intents, setIntents] = useState<BorrowIntent[]>([]);
+  const [cancelling, setCancelling] = useState<string | null>(null);
 
   const walletAddress = wallets[0]?.address;
+
+  const loadIntents = useCallback(async () => {
+    if (!walletAddress) return;
+    try {
+      const data: any = await get(`/api/v1/borrower-status/${walletAddress}`);
+      setIntents(data.pendingIntents ?? []);
+    } catch {
+      // silent
+    }
+  }, [walletAddress]);
+
+  useEffect(() => {
+    loadIntents();
+  }, [loadIntents]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -197,10 +248,38 @@ const BorrowCard = () => {
 
       setIntentId(result.intentId);
       setStatus("done");
+      setBorrowAmount("");
+      setMaxRate("");
+      setCollateralAmount("");
+      await loadIntents();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Transaction failed";
-      setError(message);
+      setError(friendlyError(err));
       setStatus("error");
+    }
+  };
+
+  const handleCancel = async (intentIdToCancel: string) => {
+    const wallet = wallets[0];
+    if (!wallet) return;
+
+    setCancelling(intentIdToCancel);
+    try {
+      await wallet.switchChain(CHAIN_ID);
+      const ethereumProvider = await wallet.getEthereumProvider();
+      const provider = new ethers.BrowserProvider(ethereumProvider);
+      const signer = await provider.getSigner();
+      const account = await signer.getAddress();
+      const timestamp = ts();
+
+      const message = { account, intentId: intentIdToCancel, timestamp };
+      const auth = await signer.signTypedData(GHOST_DOMAIN, CANCEL_BORROW_TYPES, message);
+      await post("/api/v1/cancel-borrow", { ...message, auth });
+      await loadIntents();
+    } catch (err: unknown) {
+      setError(friendlyError(err));
+      setStatus("error");
+    } finally {
+      setCancelling(null);
     }
   };
 
@@ -408,6 +487,53 @@ const BorrowCard = () => {
           <div className="text-xs text-muted-foreground">Intent ID</div>
           <div className="font-mono text-sm text-foreground break-all">
             {intentId}
+          </div>
+        </div>
+      )}
+
+      {/* Active Borrow Intents */}
+      {authenticated && intents.length > 0 && (
+        <div className="space-y-3 mt-4">
+          <h2 className="text-lg font-medium text-foreground">Your Borrow Intents</h2>
+          <div className="space-y-2">
+            {intents.map((intent) => (
+              <div
+                key={intent.intentId}
+                className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                    <ArrowDownUp className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-foreground">
+                      {formatAmount(intent.amount)} {tokenSymbol(intent.token)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Collateral: {formatAmount(intent.collateralAmount)} {tokenSymbol(intent.collateralToken)}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                    intent.status === "proposed"
+                      ? "bg-yellow-500/20 text-yellow-400"
+                      : "bg-green-500/20 text-green-400"
+                  }`}>
+                    {intent.status}
+                  </span>
+                  {intent.status === "pending" && (
+                    <button
+                      onClick={() => handleCancel(intent.intentId)}
+                      disabled={cancelling === intent.intentId}
+                      className="text-xs text-red-400 hover:text-red-300 font-medium cursor-pointer disabled:opacity-50"
+                    >
+                      {cancelling === intent.intentId ? "Cancelling..." : "Cancel"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

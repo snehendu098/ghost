@@ -1,9 +1,9 @@
 "use client";
 
 const stats = [
-  { value: "6.33%", label: "APY" },
-  { value: "$208.9M", label: "TVL" },
-  { value: "42K", label: "Holders" },
+  { value: "Private", label: "Sealed-Rate Lending" },
+  { value: "Sepolia", label: "Testnet Live" },
+  { value: "CRE", label: "Chainlink Powered" },
 ];
 
 const InfinityHero = () => {
@@ -20,18 +20,19 @@ const InfinityHero = () => {
         {/* Badge */}
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-          <span className="text-sm font-medium text-muted-foreground">Infinity</span>
+          <span className="text-sm font-medium text-muted-foreground">Ghost Protocol</span>
         </div>
 
         {/* Title */}
         <h1 className="text-5xl font-semibold leading-tight tracking-tight text-foreground">
-          Earn the Best Yields<br />on Your SOL
+          Private P2P Lending<br />with Sealed Rates
         </h1>
 
         {/* Subtitle */}
         <p className="text-base text-muted-foreground leading-relaxed max-w-md">
-          The only liquid staking strategy that earns trading fees and holds
-          the highest-yielding LSTs.
+          The first lending protocol where rates are encrypted, matched
+          confidentially by Chainlink CRE, and settled on-chain — no one
+          sees your bid.
         </p>
 
         {/* Stats */}

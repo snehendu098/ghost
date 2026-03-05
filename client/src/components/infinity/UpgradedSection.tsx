@@ -2,12 +2,12 @@ import { Check } from "lucide-react";
 import StakeCard from "./StakeCard";
 
 const features = [
-  ["Earn INF Trading Fees", "Highest-yielding LSTs"],
-  ["Use INF in DeFi", "Earn Staking Rewards"],
-  ["Earn Block Rewards", "Earn MEV Rewards"],
+  ["Sealed-Rate Auctions", "Discriminatory Pricing"],
+  ["Credit-Based Collateral", "Private Token Transfers"],
+  ["Chainlink CRE Matching", "On-Chain Settlement"],
 ];
 
-const partners = ["Jupiter", "Phantom", "Ledger", "Solflare"];
+const partners = ["Chainlink", "Sepolia", "EIP-712", "eciesjs"];
 
 const UpgradedSection = () => {
   return (
@@ -15,13 +15,14 @@ const UpgradedSection = () => {
       <div className="flex flex-col lg:flex-row gap-10 items-start justify-between">
         {/* Left */}
         <div className="flex-1 space-y-6 max-w-md">
-          <span className="text-sm font-semibold text-emerald-400">Upgraded</span>
+          <span className="text-sm font-semibold text-emerald-400">How It Works</span>
           <h2 className="text-3xl font-semibold text-foreground leading-tight">
-            Enjoy the best LSTs.<br />Earn trading fees too.
+            Borrow privately.<br />Lend at your rate.
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            INF lets you earn trading fees on top of staking, MEV, and block
-            rewards—something no other staking token does.
+            Ghost Protocol uses sealed-rate auctions where lenders submit encrypted
+            interest rates. Chainlink CRE decrypts and matches them inside confidential
+            compute — no one can front-run or game the rates.
           </p>
 
           {/* Feature grid */}
@@ -36,7 +37,7 @@ const UpgradedSection = () => {
 
           {/* Partners */}
           <div className="space-y-3 pt-2">
-            <p className="text-xs text-muted-foreground">Supported by leading partners:</p>
+            <p className="text-xs text-muted-foreground">Built with:</p>
             <div className="flex items-center gap-6">
               {partners.map((p) => (
                 <span key={p} className="text-sm font-semibold text-muted-foreground">

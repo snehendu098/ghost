@@ -16,10 +16,12 @@ const FeaturedCard = ({ lst }: { lst: FeaturedLST }) => {
         </div>
       </div>
 
-      {/* Bottom: APY */}
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-xl font-bold text-foreground">{lst.apy}%</span>
-        <span className="text-sm text-muted-foreground">APY</span>
+      {/* Bottom: status */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400">
+          Active Pool
+        </span>
+        <span className="text-xs text-muted-foreground">Sepolia</span>
       </div>
     </div>
   );

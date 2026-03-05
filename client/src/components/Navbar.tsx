@@ -1,15 +1,16 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Settings, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
-import { useNavigation } from "./providers/navigation-provider";
 import { usePrivy } from "@privy-io/react-auth";
 
 const navItems = [
-  { label: "Stake", href: "/stake" },
-  { label: "Infinity", href: "/infinity" },
+  { label: "Stake", href: "/" },
   { label: "Explore", href: "/explore" },
+  { label: "Infinity", href: "/infinity" },
 ];
 
 const moreLinks = [
@@ -21,7 +22,7 @@ const moreLinks = [
 ];
 
 const Navbar = () => {
-  const { activePage, setActivePage } = useNavigation();
+  const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const { login, logout, authenticated, user } = usePrivy();
 
@@ -46,19 +47,22 @@ const Navbar = () => {
 
           {/* Nav Items */}
           <nav className="flex items-center gap-0.5">
-            {navItems.map((item) => (
-              <button
-                key={item.label}
-                onClick={() => setActivePage(item.label as "Stake" | "Infinity" | "Explore")}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
-                  activePage === item.label
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
 
             {/* More Dropdown */}
             <div className="relative">
