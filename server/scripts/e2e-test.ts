@@ -138,18 +138,18 @@ async function get(path: string) {
 async function lendFlow(wallet: ethers.Wallet, token: string, amount: string, rate: string, label: string) {
   console.log(`  [${label}] Init deposit-lend...`);
   const init = await post("/api/v1/deposit-lend/init", { account: wallet.address, token, amount });
-  console.log(`  [${label}] Shielded: ${init.shieldedAddress}`);
+  console.log(`  [${label}] SlotId: ${init.slotId}`);
 
-  console.log(`  [${label}] Private transfer ${ethers.formatEther(amount)} gUSD -> shielded...`);
-  await privateTransfer(wallet, init.shieldedAddress, token, amount);
+  console.log(`  [${label}] Private transfer ${ethers.formatEther(amount)} gUSD -> pool...`);
+  await privateTransfer(wallet, poolWallet.address, token, amount);
 
   const encryptedRate = encryptRate(rate);
   const timestamp = ts();
-  const confirmMsg = { account: wallet.address, shieldedAddress: init.shieldedAddress, encryptedRate, timestamp };
+  const confirmMsg = { account: wallet.address, slotId: init.slotId, encryptedRate, timestamp };
   const auth = await wallet.signTypedData(GHOST_DOMAIN, {
     "Confirm Deposit": [
       { name: "account", type: "address" },
-      { name: "shieldedAddress", type: "address" },
+      { name: "slotId", type: "string" },
       { name: "encryptedRate", type: "string" },
       { name: "timestamp", type: "uint256" },
     ],

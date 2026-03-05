@@ -4,7 +4,7 @@
  * - Lender B: 500 gUSD @ 8%
  */
 import { ethers } from "ethers";
-import { lenderA, lenderB } from "./utils";
+import { lenderA, lenderB, pool } from "./utils";
 import {
   gUSD, VAULT_ADDRESS, ERC20_ABI, VAULT_ABI,
   toWei, ts, encryptRate, privateTransfer,
@@ -26,20 +26,20 @@ async function lendFlow(wallet: ethers.Wallet, amount: string, rate: string, lab
     token: gUSD,
     amount,
   });
-  console.log(`  [${label}] Shielded: ${init.shieldedAddress}`);
+  console.log(`  [${label}] SlotId: ${init.slotId}`);
 
-  // Private transfer to shielded address
-  console.log(`  [${label}] Private transfer -> shielded address...`);
-  await privateTransfer(wallet, init.shieldedAddress, gUSD, amount);
+  // Private transfer to pool wallet
+  console.log(`  [${label}] Private transfer -> pool wallet...`);
+  await privateTransfer(wallet, pool.address, gUSD, amount);
 
   // Confirm with encrypted rate
   const encrypted = encryptRate(rate);
   const timestamp = ts();
-  const confirmMsg = { account: wallet.address, shieldedAddress: init.shieldedAddress, encryptedRate: encrypted, timestamp };
+  const confirmMsg = { account: wallet.address, slotId: init.slotId, encryptedRate: encrypted, timestamp };
   const auth = await wallet.signTypedData(GHOST_DOMAIN, {
     "Confirm Deposit": [
       { name: "account", type: "address" },
-      { name: "shieldedAddress", type: "address" },
+      { name: "slotId", type: "string" },
       { name: "encryptedRate", type: "string" },
       { name: "timestamp", type: "uint256" },
     ],

@@ -16572,11 +16572,11 @@ var onCronTrigger = (runtime2, _payload) => {
     return "checked=0 unhealthy=0 undercollateralized=0";
   const ethPrice = readEthPrice(runtime2);
   const now = Date.now();
-  let unhealthy = 0;
-  let undercollateralized = 0;
+  const unhealthyIds = [];
   for (const loan of loans) {
     if (loan.maturity < now) {
-      unhealthy++;
+      unhealthyIds.push(loan.loanId);
+      runtime2.log(`matured loan=${loan.loanId}`);
       continue;
     }
     const collateral = parseFloat(loan.collateralAmount);
@@ -16584,12 +16584,34 @@ var onCronTrigger = (runtime2, _payload) => {
     if (principal > 0 && collateral > 0) {
       const healthRatio = collateral * ethPrice / principal;
       if (healthRatio < runtime2.config.liquidationThreshold) {
-        undercollateralized++;
+        unhealthyIds.push(loan.loanId);
         runtime2.log(`undercollateralized loan=${loan.loanId} healthRatio=${healthRatio.toFixed(4)} threshold=${runtime2.config.liquidationThreshold}`);
       }
     }
   }
-  const result = `checked=${loans.length} unhealthy=${unhealthy} undercollateralized=${undercollateralized} ethPrice=${ethPrice.toFixed(2)}`;
+  let liquidated = 0;
+  if (unhealthyIds.length > 0) {
+    const liqResp = confClient.sendRequest(runtime2, {
+      vaultDonSecrets: API_KEY_SECRET,
+      request: {
+        url: base + "/internal/liquidate-loans",
+        method: "POST",
+        multiHeaders: {
+          "x-api-key": { values: ["{{.INTERNAL_API_KEY}}"] },
+          "content-type": { values: ["application/json"] }
+        },
+        bodyString: JSON.stringify({ loanIds: unhealthyIds })
+      }
+    }).result();
+    if (ok(liqResp)) {
+      const liqData = json(liqResp);
+      liquidated = liqData.liquidated ?? 0;
+      runtime2.log(`liquidated ${liquidated} loans`);
+    } else {
+      runtime2.log("error:liquidate-loans");
+    }
+  }
+  const result = `checked=${loans.length} unhealthy=${unhealthyIds.length} liquidated=${liquidated} ethPrice=${ethPrice.toFixed(2)}`;
   runtime2.log("check-loans result: " + result);
   return result;
 };

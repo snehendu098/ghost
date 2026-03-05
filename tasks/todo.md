@@ -23,3 +23,16 @@
 - [x] CRE workflows type-check (all 3 pass)
 - [x] Server runtime test (health check ok)
 - [ ] Integration test with CRE simulation
+
+## Liquidation, Default & Credit Score
+- [x] Add CreditTier, CreditScore types + "liquidate" reason to types.ts
+- [x] Add creditScores map + getCreditScore/upgradeTier/downgradeTier to state.ts
+- [x] Add getCollateralMultiplier export to state.ts
+- [x] Add POST /internal/liquidate-loans controller (seize collateral, 95/5 split, downgrade borrower)
+- [x] Update repay controller to upgrade tier + increment loansRepaid
+- [x] Enforce collateral requirement by credit tier in borrow controller
+- [x] Add GET /credit-score/:address public endpoint
+- [x] Update CRE check-loans to POST unhealthy loanIds to /internal/liquidate-loans
+- [x] Create root CLAUDE.md with project context
+- [x] Server + CRE compile clean
+- [ ] E2E verification (repay → tier up, liquidation → tier down, collateral check)

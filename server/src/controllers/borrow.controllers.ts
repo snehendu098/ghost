@@ -1,6 +1,8 @@
 import { Context } from "hono";
 import { authenticate } from "../auth";
-import { state } from "../state";
+import { state, getCollateralMultiplier } from "../state";
+import { getEthPrice } from "../price";
+import { config } from "../config";
 import type { BorrowIntent } from "../types";
 
 export const submitBorrowIntent = async (c: Context) => {
@@ -40,8 +42,42 @@ export const submitBorrowIntent = async (c: Context) => {
         timestamp,
       },
       auth,
-      account
+      account,
     );
+
+    // Validate collateral token is gUSD or gETH
+    const ct = collateralToken.toLowerCase();
+    const isUsdCollateral = ct === config.TOKEN_ADDRESS.toLowerCase();
+    const isEthCollateral = ct === config.GETH_ADDRESS.toLowerCase();
+    if (!isUsdCollateral && !isEthCollateral)
+      return c.json({ error: "Collateral token must be gUSD or gETH" }, 400);
+
+    // Enforce collateral requirement based on credit tier + live price
+    const score = state.getCreditScore(account);
+    const multiplier = getCollateralMultiplier(score.tier);
+    const collateralAmt = BigInt(collateralAmount);
+    const borrowAmt = BigInt(amount);
+    const ethPrice = isUsdCollateral ? null : await getEthPrice();
+    // gUSD collateral: already USD, gETH collateral: convert via price feed
+    const collateralValueUsd = isUsdCollateral
+      ? Number(collateralAmt) / 1e18
+      : (Number(collateralAmt) / 1e18) * ethPrice!;
+    const requiredValueUsd = (Number(borrowAmt) / 1e18) * multiplier;
+
+    if (collateralValueUsd < requiredValueUsd) {
+      return c.json(
+        {
+          error: "Insufficient collateral for credit tier",
+          tier: score.tier,
+          multiplier,
+          ethPrice,
+          requiredUsd: requiredValueUsd,
+          providedUsd: collateralValueUsd,
+          provided: collateralAmt.toString(),
+        },
+        400,
+      );
+    }
 
     const intentId = crypto.randomUUID();
     const intent: BorrowIntent = {
@@ -75,7 +111,7 @@ export const cancelBorrow = async (c: Context) => {
       "Cancel Borrow",
       { account, intentId, timestamp },
       auth,
-      account
+      account,
     );
 
     const intent = state.borrowIntents.get(intentId);
@@ -83,17 +119,14 @@ export const cancelBorrow = async (c: Context) => {
     if (intent.borrower !== account.toLowerCase())
       return c.json({ error: "Not intent owner" }, 403);
     if (intent.status !== "pending")
-      return c.json(
-        { error: "Can only cancel pending intents" },
-        409
-      );
+      return c.json({ error: "Can only cancel pending intents" }, 409);
 
     // Queue collateral return for CRE to execute
     const transferId = state.queueTransfer(
       account,
       intent.collateralToken,
       intent.collateralAmount.toString(),
-      "cancel-borrow"
+      "cancel-borrow",
     );
 
     intent.status = "cancelled";
@@ -118,7 +151,7 @@ export const acceptProposal = async (c: Context) => {
       "Accept Proposal",
       { account, proposalId, timestamp },
       auth,
-      account
+      account,
     );
 
     const proposal = state.matchProposals.get(proposalId);
@@ -129,6 +162,23 @@ export const acceptProposal = async (c: Context) => {
       return c.json({ error: "Proposal not pending" }, 409);
     if (Date.now() > proposal.expiresAt)
       return c.json({ error: "Proposal expired" }, 410);
+
+    // Compute required collateral (X) — locked for loan duration
+    const ct = proposal.collateralToken;
+    const isUsdCollateral = ct === config.TOKEN_ADDRESS.toLowerCase();
+    const score = state.getCreditScore(proposal.borrower);
+    const multiplier = getCollateralMultiplier(score.tier);
+    const requiredValueUsd = (Number(proposal.principal) / 1e18) * multiplier;
+    let requiredCollateral: bigint;
+    if (isUsdCollateral) {
+      requiredCollateral = BigInt(Math.ceil(requiredValueUsd * 1e18));
+    } else {
+      const ethPrice = await getEthPrice();
+      requiredCollateral = BigInt(Math.ceil((requiredValueUsd / ethPrice) * 1e18));
+    }
+    // Cap at deposited amount (should never exceed, but safety)
+    if (requiredCollateral > proposal.collateralAmount)
+      requiredCollateral = proposal.collateralAmount;
 
     // Create loan
     const loanId = crypto.randomUUID();
@@ -141,6 +191,7 @@ export const acceptProposal = async (c: Context) => {
       effectiveBorrowerRate: proposal.effectiveBorrowerRate,
       collateralToken: proposal.collateralToken,
       collateralAmount: proposal.collateralAmount,
+      requiredCollateral,
       maturity: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days default
       status: "active",
       repaidAmount: BigInt(0),
@@ -170,12 +221,63 @@ export const acceptProposal = async (c: Context) => {
       proposal.borrower,
       proposal.token,
       proposal.principal.toString(),
-      "disburse"
+      "disburse",
     );
 
     return c.json({
       status: "accepted",
       loanId,
+      transferId,
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 401);
+  }
+};
+
+export const claimExcessCollateral = async (c: Context) => {
+  try {
+    const { account, loanId, timestamp, auth } = await c.req.json();
+
+    if (!account || !loanId || !timestamp || !auth)
+      return c.json({ error: "Missing required fields" }, 400);
+
+    authenticate(
+      "Claim Excess Collateral",
+      { account, loanId, timestamp },
+      auth,
+      account,
+    );
+
+    const loan = state.loans.get(loanId);
+    if (!loan) return c.json({ error: "Loan not found" }, 404);
+    if (loan.borrower !== account.toLowerCase())
+      return c.json({ error: "Not loan owner" }, 403);
+    if (loan.status !== "active")
+      return c.json({ error: "Loan not active" }, 409);
+
+    // X = requiredCollateral (fixed at loan creation), K = excess
+    const excess = loan.collateralAmount - loan.requiredCollateral;
+    if (excess <= 0n)
+      return c.json({
+        error: "No excess collateral",
+        locked: loan.collateralAmount.toString(),
+        required: loan.requiredCollateral.toString(),
+      }, 400);
+
+    // Reduce to exactly X, return K
+    loan.collateralAmount = loan.requiredCollateral;
+    const transferId = state.queueTransfer(
+      loan.borrower,
+      loan.collateralToken,
+      excess.toString(),
+      "return-collateral",
+    );
+
+    return c.json({
+      status: "excess_claimed",
+      loanId,
+      excessReturned: excess.toString(),
+      remainingCollateral: requiredCollateral.toString(),
       transferId,
     });
   } catch (err: any) {
@@ -194,7 +296,7 @@ export const rejectProposal = async (c: Context) => {
       "Reject Proposal",
       { account, proposalId, timestamp },
       auth,
-      account
+      account,
     );
 
     const proposal = state.matchProposals.get(proposalId);
@@ -205,8 +307,7 @@ export const rejectProposal = async (c: Context) => {
       return c.json({ error: "Proposal not pending" }, 409);
 
     // Slash 5% collateral (stays in pool), return 95%
-    const slashAmount =
-      (proposal.collateralAmount * BigInt(5)) / BigInt(100);
+    const slashAmount = (proposal.collateralAmount * BigInt(5)) / BigInt(100);
     const returnAmount = proposal.collateralAmount - slashAmount;
 
     // Queue collateral return for CRE to execute
@@ -214,7 +315,7 @@ export const rejectProposal = async (c: Context) => {
       proposal.borrower,
       proposal.collateralToken,
       returnAmount.toString(),
-      "return-collateral"
+      "return-collateral",
     );
 
     proposal.status = "rejected";

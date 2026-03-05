@@ -204,14 +204,14 @@ async function main() {
     console.error("  INIT FAILED:", init.data);
     process.exit(1);
   }
-  const shieldedAddress = init.data.shieldedAddress;
-  console.log(`  Shielded address: ${shieldedAddress}`);
+  const slotId = init.data.slotId;
+  console.log(`  Slot ID: ${slotId}`);
 
   // ──────────────────────────────────────────────
   // STEP 4: Private transfer to shielded address
   // ──────────────────────────────────────────────
-  console.log("\n=== STEP 4: Private transfer 10 gUSD → shielded address ===");
-  const txResult = await privateTransfer(userWallet, shieldedAddress, AMOUNT);
+  console.log("\n=== STEP 4: Private transfer 10 gUSD → pool wallet ===");
+  const txResult = await privateTransfer(userWallet, poolWallet.address, AMOUNT);
   console.log(`  Transfer ID: ${txResult.transaction_id}`);
   const userVault2 = await getVaultBalance(userWallet);
   const poolVault2 = await getVaultBalance(poolWallet);
@@ -230,14 +230,14 @@ async function main() {
   const confirmTs = ts();
   const confirmMsg = {
     account: userWallet.address,
-    shieldedAddress,
+    slotId,
     encryptedRate,
     timestamp: confirmTs,
   };
   const confirmTypes = {
     "Confirm Deposit": [
       { name: "account", type: "address" },
-      { name: "shieldedAddress", type: "address" },
+      { name: "slotId", type: "string" },
       { name: "encryptedRate", type: "string" },
       { name: "timestamp", type: "uint256" },
     ],
@@ -261,13 +261,13 @@ async function main() {
   const cancelTs = ts();
   const cancelMsg = {
     account: userWallet.address,
-    shieldedAddress,
+    slotId,
     timestamp: cancelTs,
   };
   const cancelTypes = {
     "Cancel Lend": [
       { name: "account", type: "address" },
-      { name: "shieldedAddress", type: "address" },
+      { name: "slotId", type: "string" },
       { name: "timestamp", type: "uint256" },
     ],
   };

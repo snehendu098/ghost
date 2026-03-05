@@ -24,20 +24,20 @@ function ts() {
   return Math.floor(Date.now() / 1000);
 }
 
-async function signConfirm(shieldedAddress: string, encryptedRate: string) {
+async function signConfirm(slotId: string, encryptedRate: string) {
   const timestamp = ts();
-  const message = { account, shieldedAddress, encryptedRate, timestamp };
+  const message = { account, slotId, encryptedRate, timestamp };
   const types = { "Confirm Deposit": [...MESSAGE_TYPES["Confirm Deposit"]] };
   const auth = await wallet.signTypedData(EIP712_DOMAIN, types, message);
-  return { account, shieldedAddress, encryptedRate, timestamp, auth };
+  return { account, slotId, encryptedRate, timestamp, auth };
 }
 
-async function signCancel(shieldedAddress: string) {
+async function signCancel(slotId: string) {
   const timestamp = ts();
-  const message = { account, shieldedAddress, timestamp };
+  const message = { account, slotId, timestamp };
   const types = { "Cancel Lend": [...MESSAGE_TYPES["Cancel Lend"]] };
   const auth = await wallet.signTypedData(EIP712_DOMAIN, types, message);
-  return { account, shieldedAddress, timestamp, auth };
+  return { account, slotId, timestamp, auth };
 }
 
 function post(path: string, body: any) {
@@ -48,10 +48,10 @@ function post(path: string, body: any) {
   });
 }
 
-async function initAndGetAddress(): Promise<string> {
+async function initAndGetSlotId(): Promise<string> {
   const res = await post("/deposit-lend/init", { account, token, amount });
   const data: any = await res.json();
-  return data.shieldedAddress;
+  return data.slotId;
 }
 
 beforeEach(() => {
@@ -66,7 +66,7 @@ describe("initDepositLend", () => {
     const res = await post("/deposit-lend/init", { account, token, amount });
     expect(res.status).toBe(200);
     const data: any = await res.json();
-    expect(data.shieldedAddress).toBeDefined();
+    expect(data.slotId).toBeDefined();
     expect(state.depositSlots.size).toBe(1);
   });
 
@@ -78,10 +78,10 @@ describe("initDepositLend", () => {
 
 describe("confirmDepositLend", () => {
   it("valid → balance credited + intent stored", async () => {
-    const shieldedAddress = await initAndGetAddress();
+    const slotId = await initAndGetSlotId();
 
     const encryptedRate = "0xencrypted_blob_here";
-    const confirmBody = await signConfirm(shieldedAddress, encryptedRate);
+    const confirmBody = await signConfirm(slotId, encryptedRate);
     const res = await post("/deposit-lend/confirm", confirmBody);
     expect(res.status).toBe(200);
     const data: any = await res.json();
@@ -93,67 +93,68 @@ describe("confirmDepositLend", () => {
   });
 
   it("bad sig → 401", async () => {
-    const shieldedAddress = await initAndGetAddress();
-    const body = await signConfirm(shieldedAddress, "0xenc");
+    const slotId = await initAndGetSlotId();
+    const body = await signConfirm(slotId, "0xenc");
     body.auth = "0x" + "00".repeat(65);
     const res = await post("/deposit-lend/confirm", body);
     expect(res.status).toBe(401);
   });
 
   it("expired slot → 410", async () => {
-    const shieldedAddress = await initAndGetAddress();
+    const slotId = await initAndGetSlotId();
 
-    const slot = state.depositSlots.get(shieldedAddress.toLowerCase())!;
+    const slot = state.depositSlots.get(slotId)!;
     slot.createdAt = Date.now() - 11 * 60 * 1000;
 
     const encryptedRate = "0xencrypted";
-    const body = await signConfirm(shieldedAddress, encryptedRate);
+    const body = await signConfirm(slotId, encryptedRate);
     const res = await post("/deposit-lend/confirm", body);
     expect(res.status).toBe(410);
   });
 
   it("double confirm → 409", async () => {
-    const shieldedAddress = await initAndGetAddress();
+    const slotId = await initAndGetSlotId();
 
     const encryptedRate = "0xencrypted";
-    const body1 = await signConfirm(shieldedAddress, encryptedRate);
+    const body1 = await signConfirm(slotId, encryptedRate);
     await post("/deposit-lend/confirm", body1);
 
-    const body2 = await signConfirm(shieldedAddress, encryptedRate);
+    const body2 = await signConfirm(slotId, encryptedRate);
     const res = await post("/deposit-lend/confirm", body2);
     expect(res.status).toBe(409);
   });
 });
 
 describe("cancelLend", () => {
-  // Cancel calls real external private-transfer API — pool needs funds.
-  // Full cancel flow verified via integration test (scripts/real-flow-test.ts).
-  it("valid → calls external private transfer", async () => {
-    const shieldedAddress = await initAndGetAddress();
-    const confirmBody = await signConfirm(shieldedAddress, "0xenc");
+  it("valid → queues transfer", async () => {
+    const slotId = await initAndGetSlotId();
+    const confirmBody = await signConfirm(slotId, "0xenc");
     await post("/deposit-lend/confirm", confirmBody);
 
     expect(state.activeBuffer.size).toBe(1);
 
-    const cancelBody = await signCancel(shieldedAddress);
+    const cancelBody = await signCancel(slotId);
     const res = await post("/cancel-lend", cancelBody);
-    // 200 if pool has funds, 401 if external API rejects (no funds)
-    expect([200, 401]).toContain(res.status);
+    expect(res.status).toBe(200);
+    const data: any = await res.json();
+    expect(data.status).toBe("cancelled");
+    expect(data.transferId).toBeDefined();
+    expect(state.activeBuffer.size).toBe(0);
   });
 
   it("not owner → 403", async () => {
-    const shieldedAddress = await initAndGetAddress();
-    const confirmBody = await signConfirm(shieldedAddress, "0xenc");
+    const slotId = await initAndGetSlotId();
+    const confirmBody = await signConfirm(slotId, "0xenc");
     await post("/deposit-lend/confirm", confirmBody);
 
     const other = ethers.Wallet.createRandom();
     const timestamp = ts();
-    const message = { account: other.address, shieldedAddress, timestamp };
+    const message = { account: other.address, slotId, timestamp };
     const types = { "Cancel Lend": [...MESSAGE_TYPES["Cancel Lend"]] };
     const auth = await other.signTypedData(EIP712_DOMAIN, types, message);
     const res = await post("/cancel-lend", {
       account: other.address,
-      shieldedAddress,
+      slotId,
       timestamp,
       auth,
     });
@@ -161,9 +162,9 @@ describe("cancelLend", () => {
   });
 
   it("not in activeBuffer → 409", async () => {
-    const shieldedAddress = await initAndGetAddress();
+    const slotId = await initAndGetSlotId();
 
-    const cancelBody = await signCancel(shieldedAddress);
+    const cancelBody = await signCancel(slotId);
     const res = await post("/cancel-lend", cancelBody);
     expect(res.status).toBe(409);
   });

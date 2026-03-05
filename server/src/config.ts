@@ -5,7 +5,6 @@ function required(key: string): string {
 }
 
 export const config = {
-  // Only needed for generateShieldedAddress; will be moved to CRE vault secrets
   POOL_PRIVATE_KEY: process.env.POOL_PRIVATE_KEY ?? "",
   TOKEN_ADDRESS: required("TOKEN_ADDRESS"),
   CRE_PUBLIC_KEY: required("CRE_PUBLIC_KEY"),
@@ -18,4 +17,12 @@ export const config = {
   CHAIN_ID: Number(process.env.CHAIN_ID ?? "11155111"),
   PORT: Number(process.env.PORT ?? "3000"),
   INTERNAL_API_KEY: process.env.INTERNAL_API_KEY ?? "",
+  ARBITRUM_RPC_URL:
+    process.env.ARBITRUM_RPC_URL ?? "https://arbitrum-one-rpc.publicnode.com",
+  ETH_USD_FEED:
+    process.env.ETH_USD_FEED ??
+    "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
+  GETH_ADDRESS:
+    process.env.GETH_ADDRESS ??
+    "0x81aF9668d4a67AeDFD43bF38787debA8FD33cbA6",
 };

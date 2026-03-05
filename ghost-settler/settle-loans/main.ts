@@ -24,7 +24,6 @@ interface LendIntent {
   token: string;
   amount: string;
   encryptedRate: string;
-  shieldedAddress: string;
 }
 
 interface BorrowIntent {

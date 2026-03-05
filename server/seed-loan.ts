@@ -48,15 +48,15 @@ async function main() {
     token: gUSD,
     amount: "1000000000000000000000",
   });
-  console.log("  shieldedAddress:", initRes.shieldedAddress);
+  console.log("  slotId:", initRes.slotId);
 
   // 2. Confirm deposit-lend
   console.log("2. Confirm deposit-lend...");
   const t1 = ts();
-  const confirmMsg = { account, shieldedAddress: initRes.shieldedAddress, encryptedRate: "encrypted_5pct", timestamp: t1 };
+  const confirmMsg = { account, slotId: initRes.slotId, encryptedRate: "encrypted_5pct", timestamp: t1 };
   const confirmAuth = await sign("Confirm Deposit", [
     { name: "account", type: "address" },
-    { name: "shieldedAddress", type: "address" },
+    { name: "slotId", type: "string" },
     { name: "encryptedRate", type: "string" },
     { name: "timestamp", type: "uint256" },
   ], confirmMsg);

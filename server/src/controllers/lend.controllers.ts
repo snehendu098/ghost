@@ -1,7 +1,6 @@
 import { Context } from "hono";
 import { authenticate } from "../auth";
 import { state } from "../state";
-import * as externalApi from "../external-api";
 import type { DepositSlot, LendIntent } from "../types";
 
 export const initDepositLend = async (c: Context) => {
@@ -13,11 +12,10 @@ export const initDepositLend = async (c: Context) => {
 
     state.expireOldSlots();
 
-    const result = await externalApi.generateShieldedAddress();
-    const shieldedAddress: string = result.shieldedAddress;
+    const slotId = crypto.randomUUID();
 
     const slot: DepositSlot = {
-      shieldedAddress,
+      slotId,
       userId: account.toLowerCase(),
       token: token.toLowerCase(),
       amount: BigInt(amount),
@@ -26,9 +24,9 @@ export const initDepositLend = async (c: Context) => {
       epochId: state.currentEpoch,
     };
 
-    state.depositSlots.set(shieldedAddress.toLowerCase(), slot);
+    state.depositSlots.set(slotId, slot);
 
-    return c.json({ shieldedAddress, epochId: state.currentEpoch });
+    return c.json({ slotId, epochId: state.currentEpoch });
   } catch (err: any) {
     return c.json({ error: err.message }, 401);
   }
@@ -36,20 +34,20 @@ export const initDepositLend = async (c: Context) => {
 
 export const confirmDepositLend = async (c: Context) => {
   try {
-    const { account, shieldedAddress, encryptedRate, timestamp, auth } =
+    const { account, slotId, encryptedRate, timestamp, auth } =
       await c.req.json();
 
-    if (!account || !shieldedAddress || !encryptedRate || !timestamp || !auth)
+    if (!account || !slotId || !encryptedRate || !timestamp || !auth)
       return c.json({ error: "Missing required fields" }, 400);
 
     authenticate(
       "Confirm Deposit",
-      { account, shieldedAddress, encryptedRate, timestamp },
+      { account, slotId, encryptedRate, timestamp },
       auth,
       account
     );
 
-    const slot = state.depositSlots.get(shieldedAddress.toLowerCase());
+    const slot = state.depositSlots.get(slotId);
     if (!slot) return c.json({ error: "Slot not found" }, 404);
     if (slot.status === "cancelled")
       return c.json({ error: "Slot expired" }, 410);
@@ -76,12 +74,12 @@ export const confirmDepositLend = async (c: Context) => {
       token: slot.token,
       amount: slot.amount,
       encryptedRate,
-      shieldedAddress: shieldedAddress.toLowerCase(),
       epochId: state.currentEpoch,
       createdAt: Date.now(),
     };
 
     state.activeBuffer.set(intentId, intent);
+    slot.intentId = intentId;
 
     return c.json({
       status: "sealed_bid_accepted",
@@ -95,33 +93,25 @@ export const confirmDepositLend = async (c: Context) => {
 
 export const cancelLend = async (c: Context) => {
   try {
-    const { account, shieldedAddress, timestamp, auth } = await c.req.json();
+    const { account, slotId, timestamp, auth } = await c.req.json();
 
-    if (!account || !shieldedAddress || !timestamp || !auth)
+    if (!account || !slotId || !timestamp || !auth)
       return c.json({ error: "Missing required fields" }, 400);
 
     authenticate(
       "Cancel Lend",
-      { account, shieldedAddress, timestamp },
+      { account, slotId, timestamp },
       auth,
       account
     );
 
-    const slot = state.depositSlots.get(shieldedAddress.toLowerCase());
+    const slot = state.depositSlots.get(slotId);
     if (!slot) return c.json({ error: "Slot not found" }, 404);
     if (slot.userId !== account.toLowerCase())
       return c.json({ error: "Not slot owner" }, 403);
 
-    // Find intent in activeBuffer
-    let intentId: string | null = null;
-    for (const [id, intent] of state.activeBuffer) {
-      if (intent.shieldedAddress === shieldedAddress.toLowerCase()) {
-        intentId = id;
-        break;
-      }
-    }
-    if (!intentId)
-      return c.json({ error: "No active intent for this address" }, 409);
+    if (!slot.intentId || !state.activeBuffer.has(slot.intentId))
+      return c.json({ error: "No active intent for this slot" }, 409);
 
     // Queue transfer for CRE to execute
     const transferId = state.queueTransfer(
@@ -131,7 +121,7 @@ export const cancelLend = async (c: Context) => {
       "cancel-lend"
     );
 
-    state.activeBuffer.delete(intentId);
+    state.activeBuffer.delete(slot.intentId);
     state.debitBalance(account, slot.token, slot.amount);
     slot.status = "cancelled";
 

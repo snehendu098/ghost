@@ -11,13 +11,13 @@ export const EIP712_DOMAIN = {
 export const MESSAGE_TYPES = {
   "Confirm Deposit": [
     { name: "account", type: "address" },
-    { name: "shieldedAddress", type: "address" },
+    { name: "slotId", type: "string" },
     { name: "encryptedRate", type: "string" },
     { name: "timestamp", type: "uint256" },
   ],
   "Cancel Lend": [
     { name: "account", type: "address" },
-    { name: "shieldedAddress", type: "address" },
+    { name: "slotId", type: "string" },
     { name: "timestamp", type: "uint256" },
   ],
   "Submit Borrow": [
@@ -48,6 +48,11 @@ export const MESSAGE_TYPES = {
     { name: "account", type: "address" },
     { name: "loanId", type: "string" },
     { name: "amount", type: "uint256" },
+    { name: "timestamp", type: "uint256" },
+  ],
+  "Claim Excess Collateral": [
+    { name: "account", type: "address" },
+    { name: "loanId", type: "string" },
     { name: "timestamp", type: "uint256" },
   ],
 } satisfies Record<string, ethers.TypedDataField[]>;

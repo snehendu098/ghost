@@ -181,13 +181,13 @@ async function lendFlow(
     token,
     amount,
   });
-  const shieldedAddress = init.shieldedAddress;
-  console.log(`  [${label}] Shielded: ${shieldedAddress}`);
+  const slotId = init.slotId;
+  console.log(`  [${label}] SlotId: ${slotId}`);
 
   console.log(
-    `  [${label}] Private transfer ${ethers.formatEther(amount)} gUSD → shielded...`,
+    `  [${label}] Private transfer ${ethers.formatEther(amount)} gUSD → pool...`,
   );
-  await privateTransfer(wallet, shieldedAddress, token, amount);
+  await privateTransfer(wallet, poolWallet.address, token, amount);
 
   const encryptedRate = encryptRate(rate);
   console.log(
@@ -197,14 +197,14 @@ async function lendFlow(
   const timestamp = ts();
   const confirmMsg = {
     account: wallet.address,
-    shieldedAddress,
+    slotId,
     encryptedRate,
     timestamp,
   };
   const confirmTypes = {
     "Confirm Deposit": [
       { name: "account", type: "address" },
-      { name: "shieldedAddress", type: "address" },
+      { name: "slotId", type: "string" },
       { name: "encryptedRate", type: "string" },
       { name: "timestamp", type: "uint256" },
     ],

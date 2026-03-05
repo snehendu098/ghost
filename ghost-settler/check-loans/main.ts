@@ -125,13 +125,13 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
   const ethPrice = readEthPrice(runtime);
 
   const now = Date.now();
-  let unhealthy = 0;
-  let undercollateralized = 0;
+  const unhealthyIds: string[] = [];
 
   for (const loan of loans) {
     // Maturity check
     if (loan.maturity < now) {
-      unhealthy++;
+      unhealthyIds.push(loan.loanId);
+      runtime.log(`matured loan=${loan.loanId}`);
       continue;
     }
 
@@ -142,7 +142,7 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
     if (principal > 0 && collateral > 0) {
       const healthRatio = (collateral * ethPrice) / principal;
       if (healthRatio < runtime.config.liquidationThreshold) {
-        undercollateralized++;
+        unhealthyIds.push(loan.loanId);
         runtime.log(
           `undercollateralized loan=${loan.loanId} healthRatio=${healthRatio.toFixed(4)} threshold=${runtime.config.liquidationThreshold}`
         );
@@ -150,8 +150,32 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
     }
   }
 
-  // TODO: POST unhealthy loan IDs back to server for liquidation queuing
-  const result = `checked=${loans.length} unhealthy=${unhealthy} undercollateralized=${undercollateralized} ethPrice=${ethPrice.toFixed(2)}`;
+  // Liquidate unhealthy loans
+  let liquidated = 0;
+  if (unhealthyIds.length > 0) {
+    const liqResp = confClient.sendRequest(runtime, {
+      vaultDonSecrets: API_KEY_SECRET,
+      request: {
+        url: base + "/internal/liquidate-loans",
+        method: "POST",
+        multiHeaders: {
+          "x-api-key": { values: ["{{.INTERNAL_API_KEY}}"] },
+          "content-type": { values: ["application/json"] },
+        },
+        bodyString: JSON.stringify({ loanIds: unhealthyIds }),
+      },
+    }).result();
+
+    if (ok(liqResp)) {
+      const liqData = json(liqResp) as { liquidated: number };
+      liquidated = liqData.liquidated ?? 0;
+      runtime.log(`liquidated ${liquidated} loans`);
+    } else {
+      runtime.log("error:liquidate-loans");
+    }
+  }
+
+  const result = `checked=${loans.length} unhealthy=${unhealthyIds.length} liquidated=${liquidated} ethPrice=${ethPrice.toFixed(2)}`;
   runtime.log("check-loans result: " + result);
   return result;
 };

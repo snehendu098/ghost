@@ -1,5 +1,6 @@
 import { Context } from "hono";
 import { state } from "../state";
+import { getPoolAddress } from "../external-api";
 import type { MatchProposal } from "../types";
 
 export const getPendingIntents = async (c: Context) => {
@@ -168,4 +169,58 @@ export const confirmTransfers = async (c: Context) => {
     }
   }
   return c.json({ confirmed });
+};
+
+export const liquidateLoans = async (c: Context) => {
+  const { loanIds } = await c.req.json();
+  if (!Array.isArray(loanIds))
+    return c.json({ error: "loanIds must be an array" }, 400);
+
+  const poolAddress = getPoolAddress();
+  let liquidated = 0;
+  const transfers: string[] = [];
+
+  for (const loanId of loanIds) {
+    const loan = state.loans.get(loanId);
+    if (!loan || loan.status !== "active") continue;
+
+    loan.status = "defaulted";
+
+    // Downgrade borrower credit + record default
+    const score = state.getCreditScore(loan.borrower);
+    score.loansDefaulted++;
+    state.downgradeTier(loan.borrower);
+
+    // Split collateral: 5% protocol fee to pool, 95% pro-rata to lenders
+    const protocolFee = loan.collateralAmount * 5n / 100n;
+    const lenderPool = loan.collateralAmount - protocolFee;
+
+    // Protocol fee transfer to pool
+    const feeId = state.queueTransfer(
+      poolAddress,
+      loan.collateralToken,
+      protocolFee.toString(),
+      "liquidate"
+    );
+    transfers.push(feeId);
+
+    // Pro-rata distribution to each lender by principal share
+    const totalPrincipal = loan.matchedTicks.reduce((sum, t) => sum + t.amount, 0n);
+    for (const tick of loan.matchedTicks) {
+      const lenderShare = lenderPool * tick.amount / totalPrincipal;
+      if (lenderShare > 0n) {
+        const tid = state.queueTransfer(
+          tick.lender,
+          loan.collateralToken,
+          lenderShare.toString(),
+          "liquidate"
+        );
+        transfers.push(tid);
+      }
+    }
+
+    liquidated++;
+  }
+
+  return c.json({ liquidated, transfers });
 };

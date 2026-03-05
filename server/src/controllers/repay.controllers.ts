@@ -44,12 +44,21 @@ export const repayLoan = async (c: Context) => {
         400
       );
 
-    // Credit each lender at their individual tick rate (discriminatory pricing)
+    // Queue repayment transfers: principal + interest to each lender
+    const lenderTransferIds: string[] = [];
     for (const tick of loan.matchedTicks) {
       const interest = BigInt(
         Math.floor(Number(tick.amount) * tick.rate)
       );
-      state.creditBalance(tick.lender, loan.token, tick.amount + interest);
+      const payout = tick.amount + interest;
+      state.creditBalance(tick.lender, loan.token, payout);
+      const tid = state.queueTransfer(
+        tick.lender,
+        loan.token,
+        payout.toString(),
+        "repay-lender"
+      );
+      lenderTransferIds.push(tid);
     }
 
     // Queue collateral return for CRE to execute
@@ -62,6 +71,11 @@ export const repayLoan = async (c: Context) => {
 
     loan.status = "repaid";
     loan.repaidAmount = repayAmount;
+
+    // Upgrade borrower credit tier on successful repay
+    const score = state.getCreditScore(loan.borrower);
+    score.loansRepaid++;
+    state.upgradeTier(loan.borrower);
 
     return c.json({
       status: "repaid",
