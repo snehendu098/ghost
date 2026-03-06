@@ -65,7 +65,8 @@ const InfoTab = () => {
         </div>
         <button
           onClick={login}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+          className="w-full text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+          style={{ backgroundColor: "#e2a9f1" }}
         >
           Connect Wallet
         </button>
@@ -131,7 +132,7 @@ const InfoTab = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${tierGradient} flex items-center justify-center`}>
-              <Shield className="w-6 h-6 text-white" />
+              <Shield className="w-6 h-6 text-gray-900" />
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Credit Tier</div>

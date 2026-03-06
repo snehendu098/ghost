@@ -321,14 +321,16 @@ const LendCard = () => {
           <button
             onClick={handleLend}
             disabled={isProcessing}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+            className="w-full disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+            style={{ backgroundColor: "#e2a9f1" }}
           >
             {isProcessing ? "Processing..." : "Publish Lend Intent"}
           </button>
         ) : (
           <button
             onClick={login}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+            className="w-full text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+            style={{ backgroundColor: "#e2a9f1" }}
           >
             Connect Wallet
           </button>

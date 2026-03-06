@@ -29,7 +29,7 @@ const StakeCard = () => {
       </div>
 
       {/* CTA */}
-      <a href="/" className="block w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3.5 text-sm font-semibold text-white transition-colors cursor-pointer text-center">
+      <a href="/" className="block w-full rounded-xl py-3.5 text-sm font-semibold text-gray-900 transition-colors cursor-pointer text-center" style={{ backgroundColor: "#e2a9f1" }}>
         Start Borrowing / Lending
       </a>
 

@@ -8,7 +8,7 @@ import { Settings, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
 const navItems = [
-  { label: "Stake", href: "/" },
+  { label: "Home", href: "/" },
   { label: "Explore", href: "/explore" },
   { label: "Dungeon", href: "/infinity" },
   { label: "Profile", href: "/profile" }
@@ -147,7 +147,8 @@ const Navbar = () => {
           {authenticated ? (
             <button
               onClick={logout}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer"
+              className="text-gray-900 px-5 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer"
+              style={{ backgroundColor: "#e2a9f1" }}
             >
               {walletAddress
                 ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
@@ -156,7 +157,8 @@ const Navbar = () => {
           ) : (
             <button
               onClick={login}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer"
+              className="text-gray-900 px-5 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer"
+              style={{ backgroundColor: "#e2a9f1" }}
             >
               Connect
             </button>

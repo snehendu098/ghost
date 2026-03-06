@@ -5,19 +5,34 @@ import { Plus } from "lucide-react";
 
 const faqItems = [
   {
-    question: "What does it mean to swap from one LST to another?",
+    question: "What is GHOST Protocol?",
     answer:
-      "Swapping from one LST to another means exchanging your liquid staking token for a different one, allowing you to switch between different staking strategies or providers.",
+      "GHOST is a private peer-to-peer lending protocol built on Chainlink CRE. Lenders and borrowers submit sealed rate bids that are encrypted and only decrypted inside confidential compute — no one, not even the server, can see your rates.",
   },
   {
-    question: "Why can't I swap to or from SOL here?",
+    question: "How are lending rates determined?",
     answer:
-      "This swap interface is specifically designed for LST-to-LST swaps. To swap to or from SOL, please use the Stake or Unstake tabs.",
+      "Rates are discovered through a sealed, discriminatory-price auction. Lenders set their own rates (encrypted with CRE's public key). Borrowers set a max rate. CRE matches cheapest lenders to largest borrowers. Each lender earns their own bid rate — no averaging.",
   },
   {
-    question: "How is my LST swap routed?",
+    question: "What happens to my funds when I deposit?",
     answer:
-      "Your LST swap is routed through the most efficient path available, which may involve multiple intermediate swaps to get you the best rate.",
+      "Funds are deposited into the Chainlink Compliant Private Transfer vault and then privately transferred to the GHOST pool. All movements use shielded addresses — amounts and participants are hidden on-chain.",
+  },
+  {
+    question: "How does collateral and liquidation work?",
+    answer:
+      "Borrowers post collateral (e.g. gETH) before submitting a borrow intent. If the loan becomes undercollateralized, CRE detects it and seizes collateral. Higher-rate lenders absorb losses first, protecting conservative lenders.",
+  },
+  {
+    question: "What tokens are supported?",
+    answer:
+      "GHOST currently supports gUSD for lending/borrowing and gETH as collateral, operating on Sepolia testnet via the Chainlink Compliant Private Transfer vault.",
+  },
+  {
+    question: "Is GHOST safe?",
+    answer:
+      "GHOST leverages Chainlink CRE (Confidential Compute) so that rate logic runs inside a trusted execution environment. The server is 'dumb storage' — it cannot read rates or manipulate matching. All fund movements go through the Chainlink vault with EIP-712 signature auth.",
   },
 ];
 

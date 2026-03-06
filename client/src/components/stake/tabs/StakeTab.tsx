@@ -7,7 +7,7 @@ const StakeTab = () => {
     <div className="space-y-6">
       <div className="space-y-6">
         <h1 className="text-2xl font-medium text-foreground">
-          Liquid stake your SOL
+          Lend privately on GHOST
         </h1>
         <StatsDisplay />
       </div>
