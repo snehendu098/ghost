@@ -2,7 +2,7 @@
 
 import { CircleDot } from "lucide-react";
 
-const methods = ["Direct deposit", "Via Jupiter"];
+const methods = ["Private Transfer", "Vault Deposit"];
 
 interface StakeMethodSelectorProps {
   activeMethod: string;
@@ -19,7 +19,7 @@ const StakeMethodSelector = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-semibold text-foreground">
-            Stake Method
+            Deposit Method
           </span>
           <span className="text-sm text-muted-foreground">(How to choose?)</span>
         </div>
@@ -52,19 +52,19 @@ const StakeMethodSelector = ({
               {activeMethod}
             </div>
             <div className="text-xs text-muted-foreground">
-              {activeMethod === "Direct deposit"
-                ? "Mint the LST via its stake pool"
-                : "Swap via Jupiter aggregator"}
+              {activeMethod === "Private Transfer"
+                ? "Transfer funds privately via shielded address"
+                : "Deposit to vault first, then transfer to pool"}
             </div>
           </div>
         </div>
 
         <div className="text-right">
           <div className="text-sm font-medium text-emerald-400">
-            0% Deposit Fee
+            Sealed Rate
           </div>
           <div className="text-sm font-medium text-emerald-400">
-            0% Price Impact
+            CRE Encrypted
           </div>
         </div>
       </div>

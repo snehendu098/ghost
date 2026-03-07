@@ -11,7 +11,8 @@ const ConnectWalletButton = () => {
     return (
       <button
         onClick={logout}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+        className="w-full text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+        style={{ backgroundColor: "#e2a9f1" }}
       >
         {walletAddress
           ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
@@ -23,7 +24,8 @@ const ConnectWalletButton = () => {
   return (
     <button
       onClick={login}
-      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+      className="w-full text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+      style={{ backgroundColor: "#e2a9f1" }}
     >
       Connect Wallet
     </button>

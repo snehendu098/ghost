@@ -17,12 +17,10 @@ interface CoinSelectorProps {
 }
 
 const CoinIcon = ({ symbol }: { symbol: string }) => (
-  <div
-    className={`w-5 h-5 rounded-full ${
-      symbol === "gUSD"
-        ? "bg-gradient-to-br from-green-400 to-emerald-600"
-        : "bg-gradient-to-br from-blue-400 to-indigo-600"
-    }`}
+  <img
+    src={symbol === "gUSD" ? "/gusd.png" : "/geth.png"}
+    alt={symbol}
+    className="w-5 h-5 rounded-full object-cover"
   />
 );
 

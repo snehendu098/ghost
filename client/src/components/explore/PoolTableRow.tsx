@@ -1,4 +1,4 @@
-import type { LSTRow } from "./data/mockData";
+import type { PoolRow } from "./data/mockData";
 import { gUSD, gETH } from "@/lib/constants";
 
 const contractAddress = (ticker: string) => {
@@ -7,7 +7,7 @@ const contractAddress = (ticker: string) => {
   return "";
 };
 
-const LSTTableRow = ({ row }: { row: LSTRow }) => {
+const PoolTableRow = ({ row }: { row: PoolRow }) => {
   const address = contractAddress(row.ticker);
 
   return (
@@ -15,9 +15,11 @@ const LSTTableRow = ({ row }: { row: LSTRow }) => {
       <td className="py-4 px-4 text-sm text-muted-foreground">{row.rank}</td>
       <td className="py-4 px-4">
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-base">
-            {row.icon}
-          </span>
+          <img
+            src={row.iconSrc}
+            alt={row.ticker}
+            className="h-8 w-8 rounded-full object-cover"
+          />
           <div>
             <p className="text-sm font-medium text-foreground">{row.name}</p>
             <p className="text-xs text-muted-foreground">{row.ticker}</p>
@@ -25,10 +27,10 @@ const LSTTableRow = ({ row }: { row: LSTRow }) => {
         </div>
       </td>
       <td className="py-4 px-4 text-sm font-medium text-emerald-500">
-        {row.apy}
+        {row.lendIntents}
       </td>
       <td className="py-4 px-4 text-sm font-medium text-foreground">
-        {row.solStaked}
+        {row.borrowIntents}
       </td>
       <td className="py-4 px-4 text-sm text-foreground">
         Sepolia
@@ -40,4 +42,4 @@ const LSTTableRow = ({ row }: { row: LSTRow }) => {
   );
 };
 
-export default LSTTableRow;
+export default PoolTableRow;

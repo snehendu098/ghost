@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react";
 import { get } from "@/lib/ghost";
 import { gUSD, gETH } from "@/lib/constants";
-import LSTTableRow from "./LSTTableRow";
-import type { LSTRow } from "./data/mockData";
+import PoolTableRow from "./PoolTableRow";
+import type { PoolRow } from "./data/mockData";
 
 const headers = ["#", "Name", "Lend Intents", "Borrow Intents", "Network", "Contract"];
 
-const LSTTable = () => {
-  const [rows, setRows] = useState<LSTRow[]>([]);
+const PoolTable = () => {
+  const [rows, setRows] = useState<PoolRow[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -29,13 +29,13 @@ const LSTTable = () => {
         ).length;
 
         setRows([
-          { rank: 1, name: "Ghost USD", ticker: "gUSD", icon: "💵", apy: gusdLends, solStaked: gusdBorrows, marketCap: 0, holders: 0, commission: 0 },
-          { rank: 2, name: "Ghost ETH", ticker: "gETH", icon: "💎", apy: 0, solStaked: gethBorrows, marketCap: 0, holders: 0, commission: 0 },
+          { rank: 1, name: "Ghost USD", ticker: "gUSD", iconSrc: "/gusd.png", lendIntents: gusdLends, borrowIntents: gusdBorrows },
+          { rank: 2, name: "Ghost ETH", ticker: "gETH", iconSrc: "/geth.png", lendIntents: 0, borrowIntents: gethBorrows },
         ]);
       } catch {
         setRows([
-          { rank: 1, name: "Ghost USD", ticker: "gUSD", icon: "💵", apy: 0, solStaked: 0, marketCap: 0, holders: 0, commission: 0 },
-          { rank: 2, name: "Ghost ETH", ticker: "gETH", icon: "💎", apy: 0, solStaked: 0, marketCap: 0, holders: 0, commission: 0 },
+          { rank: 1, name: "Ghost USD", ticker: "gUSD", iconSrc: "/gusd.png", lendIntents: 0, borrowIntents: 0 },
+          { rank: 2, name: "Ghost ETH", ticker: "gETH", iconSrc: "/geth.png", lendIntents: 0, borrowIntents: 0 },
         ]);
       }
     };
@@ -59,7 +59,7 @@ const LSTTable = () => {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <LSTTableRow key={row.rank} row={row} />
+            <PoolTableRow key={row.rank} row={row} />
           ))}
         </tbody>
       </table>
@@ -67,4 +67,4 @@ const LSTTable = () => {
   );
 };
 
-export default LSTTable;
+export default PoolTable;

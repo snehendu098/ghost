@@ -194,7 +194,8 @@ const StatusTab = () => {
         </div>
         <button
           onClick={login}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+          className="w-full text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+          style={{ backgroundColor: "#e2a9f1" }}
         >
           Connect Wallet
         </button>
@@ -368,7 +369,7 @@ const StatusTab = () => {
                   <button
                     onClick={() => handleClaimExcess(loan.loanId)}
                     disabled={cancelling === `claim-${loan.loanId}`}
-                    className="w-full mt-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium py-2 rounded-xl transition-colors cursor-pointer"
+                    className="w-full mt-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 text-xs font-medium py-2 rounded-xl transition-colors cursor-pointer"
                   >
                     {cancelling === `claim-${loan.loanId}` ? "Withdrawing..." : `Withdraw Excess Collateral (${formatAmount(loan.excessCollateral)} ${tokenSymbol(loan.collateralToken!)})`}
                   </button>

@@ -3,7 +3,7 @@
 import HeroSection from "./HeroSection";
 import FeaturedCarousel from "./FeaturedCarousel";
 import FilterBar from "./FilterBar";
-import LSTTable from "./LSTTable";
+import PoolTable from "./PoolTable";
 
 const ExplorePage = () => {
   return (
@@ -11,7 +11,7 @@ const ExplorePage = () => {
       <HeroSection />
       <FeaturedCarousel />
       <FilterBar />
-      <LSTTable />
+      <PoolTable />
     </div>
   );
 };

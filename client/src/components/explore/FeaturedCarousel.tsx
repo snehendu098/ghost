@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { featuredLSTs } from "./data/mockData";
+import { featuredPools } from "./data/mockData";
 import FeaturedCard from "./FeaturedCard";
 
 const FeaturedCarousel = () => {
@@ -22,7 +22,7 @@ const FeaturedCarousel = () => {
       {/* Header row */}
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center rounded-full border border-border bg-card px-5 py-2 text-sm font-medium text-foreground">
-          Featured LSTs
+          Featured Pools
         </span>
         <div className="flex items-center gap-2">
           <button
@@ -45,8 +45,8 @@ const FeaturedCarousel = () => {
         ref={scrollRef}
         className="flex gap-3 overflow-x-auto scrollbar-hide"
       >
-        {featuredLSTs.map((lst) => (
-          <FeaturedCard key={lst.ticker} lst={lst} />
+        {featuredPools.map((pool) => (
+          <FeaturedCard key={pool.ticker} pool={pool} />
         ))}
       </div>
     </div>
