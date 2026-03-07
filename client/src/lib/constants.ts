@@ -108,3 +108,12 @@ export const COINS: Coin[] = [
   { symbol: "gUSD", name: "Ghost USD", address: gUSD },
   { symbol: "gETH", name: "Ghost ETH", address: gETH },
 ];
+
+// Swap Pool (deployed on Sepolia)
+export const SWAP_POOL_ADDRESS = "0xF683c97a1072e4C41ae568341141b7553d40B08B";
+
+export const SWAP_POOL_ABI = [
+  "function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut)",
+  "function getAmountOut(address tokenIn, address tokenOut, uint256 amountIn) view returns (uint256)",
+  "function poolBalance(address token) view returns (uint256)",
+];

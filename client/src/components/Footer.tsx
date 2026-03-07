@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 
 const faqItems = [
@@ -37,7 +38,10 @@ const faqItems = [
 ];
 
 const Footer = () => {
+  const pathname = usePathname();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  if (pathname === "/infinity") return null;
 
   return (
     <footer className="w-full max-w-xl mx-auto py-10">

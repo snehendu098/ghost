@@ -16,7 +16,7 @@ const InfinityPage = () => {
       <ProvenSection />
       <YieldSourcesSection />
       <IntegrationsSection />
-      
+
       <LearnMoreSection />
       <FAQSection />
     </div>

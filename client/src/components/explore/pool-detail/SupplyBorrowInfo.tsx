@@ -27,7 +27,7 @@ const SupplyBorrowInfo = ({
       {/* Supply Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-emerald-500">Supply Info</CardTitle>
+          <CardTitle className="text-foreground">Supply Info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex justify-between">
@@ -55,7 +55,7 @@ const SupplyBorrowInfo = ({
       {/* Borrow Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-orange-400">Borrow Info</CardTitle>
+          <CardTitle className="text-foreground">Borrow Info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex justify-between">

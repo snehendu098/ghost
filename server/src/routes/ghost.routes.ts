@@ -250,4 +250,47 @@ ghostRoute.get("/credit-score/:address", async (c: Context) => {
   });
 });
 
+// Swap quote — returns amountOut based on live ETH price
+ghostRoute.get("/swap-quote", async (c: Context) => {
+  const tokenIn = c.req.query("tokenIn");
+  const tokenOut = c.req.query("tokenOut");
+  const amountIn = c.req.query("amountIn");
+
+  if (!tokenIn || !tokenOut || !amountIn)
+    return c.json({ error: "Required: tokenIn, tokenOut, amountIn" }, 400);
+
+  if (tokenIn.toLowerCase() === tokenOut.toLowerCase())
+    return c.json({ error: "tokenIn and tokenOut must be different" }, 400);
+
+  const gusd = config.TOKEN_ADDRESS.toLowerCase();
+  const geth = config.GETH_ADDRESS.toLowerCase();
+
+  const inLower = tokenIn.toLowerCase();
+  const outLower = tokenOut.toLowerCase();
+
+  if (![gusd, geth].includes(inLower) || ![gusd, geth].includes(outLower))
+    return c.json({ error: "Only gUSD and gETH supported" }, 400);
+
+  const ethPrice = await getEthPrice();
+  const amtIn = BigInt(amountIn);
+
+  let amountOut: bigint;
+  if (inLower === gusd && outLower === geth) {
+    // gUSD -> gETH: amountOut = amountIn / ethPrice
+    amountOut = (amtIn * BigInt(1e18)) / BigInt(Math.round(ethPrice * 1e18));
+  } else {
+    // gETH -> gUSD: amountOut = amountIn * ethPrice
+    amountOut = (amtIn * BigInt(Math.round(ethPrice * 1e18))) / BigInt(1e18);
+  }
+
+  return c.json({
+    tokenIn,
+    tokenOut,
+    amountIn: amtIn.toString(),
+    amountOut: amountOut.toString(),
+    ethPrice,
+    rate: inLower === gusd ? `1 gUSD = ${(1 / ethPrice).toFixed(8)} gETH` : `1 gETH = ${ethPrice.toFixed(2)} gUSD`,
+  });
+});
+
 export default ghostRoute;

@@ -404,7 +404,7 @@ const StatusTab = () => {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <div>Rate: <span className="text-foreground">{((loan.effectiveRate ?? loan.rate) * 100).toFixed(2)}%</span></div>
+                  <div>Rate: <span className="text-foreground">{((loan.effectiveRate ?? (loan as any).rate ?? 0) * 100).toFixed(2)}%</span></div>
                   <div>Payout: <span className="text-foreground">{loan.expectedPayout ? formatAmount(loan.expectedPayout) : "—"} gUSD</span></div>
                   <div>Maturity: <span className="text-foreground">{loan.maturityDate ? new Date(loan.maturityDate).toLocaleDateString() : "—"}</span></div>
                 </div>

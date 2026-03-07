@@ -284,6 +284,8 @@ const BorrowCard = () => {
   };
 
   const isProcessing = ["approving", "depositing", "transferring", "submitting"].includes(status);
+  const rateEmpty = !maxRate || maxRate.trim() === "";
+  const hasAmountAndDuration = parseFloat(borrowAmount) > 0 && parseInt(duration) > 0;
 
   return (
     <>
@@ -408,11 +410,19 @@ const BorrowCard = () => {
             )}
           </>
         )}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t border-border">
+        <div className={`flex items-center gap-1.5 text-xs text-muted-foreground pt-1 ${quoteMeta ? "border-t border-border" : ""}`}>
           <AlertCircle className="w-3 h-3" />
           <span>Your max rate is encrypted and hidden from the server</span>
         </div>
       </div>
+
+      {/* Rate hint */}
+      {hasAmountAndDuration && rateEmpty && status !== "error" && (
+        <div className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl bg-amber-500/10 text-amber-400">
+          <AlertCircle className="w-4 h-4" />
+          <span>Please enter a max rate to continue</span>
+        </div>
+      )}
 
       {/* Status */}
       {status !== "idle" && status !== "done" && (
@@ -436,7 +446,7 @@ const BorrowCard = () => {
       {authenticated ? (
         <button
           onClick={handleBorrow}
-          disabled={isProcessing}
+          disabled={isProcessing || rateEmpty}
           className="w-full disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
           style={{ backgroundColor: "#e2a9f1" }}
         >

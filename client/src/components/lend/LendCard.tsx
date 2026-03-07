@@ -4,16 +4,20 @@ import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Loader2, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
+import CoinSelector from "../borrow/CoinSelector";
 import {
+  COINS,
   CHAIN_ID,
   VAULT_ADDRESS,
   gUSD,
+  gETH,
   ERC20_ABI,
   VAULT_ABI,
   GHOST_DOMAIN,
   CONFIRM_DEPOSIT_TYPES,
   CANCEL_LEND_TYPES,
   fetchPoolAddress,
+  type Coin,
 } from "@/lib/constants";
 import { encryptRate, get, post, privateTransfer, toWei, ts } from "@/lib/ghost";
 
@@ -29,8 +33,8 @@ type Status =
 
 const STATUS_LABELS: Record<Status, string> = {
   idle: "",
-  approving: "Approving gUSD spend...",
-  depositing: "Depositing gUSD into vault...",
+  approving: "Approving token spend...",
+  depositing: "Depositing into vault...",
   initializing: "Initializing lend intent...",
   transferring: "Private transferring to pool...",
   confirming: "Confirming lend intent...",
@@ -61,10 +65,18 @@ function friendlyError(err: unknown): string {
   return msg.length > 120 ? msg.slice(0, 120) + "..." : msg;
 }
 
+const tokenSymbol = (addr: string) => {
+  const lower = addr.toLowerCase();
+  if (lower === gUSD.toLowerCase()) return "gUSD";
+  if (lower === gETH.toLowerCase()) return "gETH";
+  return addr.slice(0, 6) + "...";
+};
+
 const LendCard = () => {
   const { authenticated, login } = usePrivy();
   const { wallets } = useWallets();
 
+  const [lendCoin, setLendCoin] = useState<Coin>(COINS[0]);
   const [amount, setAmount] = useState("");
   const [rate, setRate] = useState("");
   const [duration, setDuration] = useState("30");
@@ -77,6 +89,8 @@ const LendCard = () => {
 
   const walletAddress = wallets[0]?.address;
   const isProcessing = ["approving", "depositing", "initializing", "transferring", "confirming"].includes(status);
+  const rateEmpty = !rate || rate.trim() === "";
+  const hasAmountAndDuration = parseFloat(amount) > 0 && parseInt(duration) > 0;
 
   const blockInvalidChars = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
@@ -150,23 +164,25 @@ const LendCard = () => {
       const amountWei = toWei(parseFloat(amount));
       const rateDecimal = (parseFloat(rate) / 100).toString();
 
-      // Step 1: Approve gUSD to vault
+      const tokenAddr = lendCoin.address;
+
+      // Step 1: Approve token to vault
       setStatus("approving");
-      const token = new ethers.Contract(gUSD, ERC20_ABI, signer);
+      const token = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
       const approveTx = await token.approve(VAULT_ADDRESS, amountWei);
       await approveTx.wait();
 
-      // Step 2: Deposit gUSD into vault
+      // Step 2: Deposit token into vault
       setStatus("depositing");
       const vault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, signer);
-      const depositTx = await vault.deposit(gUSD, amountWei);
+      const depositTx = await vault.deposit(tokenAddr, amountWei);
       await depositTx.wait();
 
       // Step 3: Init deposit-lend on server
       setStatus("initializing");
       const init: any = await post("/api/v1/deposit-lend/init", {
         account,
-        token: gUSD,
+        token: tokenAddr,
         amount: amountWei,
       });
       const slotId = init.slotId;
@@ -174,7 +190,7 @@ const LendCard = () => {
       // Step 4: Private transfer to pool
       setStatus("transferring");
       const poolAddr = await fetchPoolAddress();
-      await privateTransfer(signer, poolAddr, gUSD, amountWei);
+      await privateTransfer(signer, poolAddr, tokenAddr, amountWei);
 
       // Step 5: Confirm with encrypted rate
       setStatus("confirming");
@@ -236,9 +252,13 @@ const LendCard = () => {
               placeholder="0"
               className="bg-transparent text-3xl font-medium text-foreground outline-none w-full placeholder:text-muted-foreground/60"
             />
-            <div className="flex items-center gap-2 bg-muted/50 rounded-xl px-4 py-3 border border-border">
-              <img src="/gusd.png" alt="gUSD" className="w-5 h-5 rounded-full object-cover" />
-              <span className="text-sm font-semibold text-foreground">gUSD</span>
+            <div className="shrink-0 w-36">
+              <CoinSelector
+                coins={[...COINS]}
+                selected={lendCoin}
+                onSelect={setLendCoin}
+                label=""
+              />
             </div>
           </div>
         </div>
@@ -282,7 +302,7 @@ const LendCard = () => {
         <div className="bg-muted/30 border border-border rounded-xl px-4 py-3 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Lending</span>
-            <span className="text-foreground font-medium">{amount || "0"} gUSD</span>
+            <span className="text-foreground font-medium">{amount || "0"} {lendCoin.symbol}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Rate (sealed)</span>
@@ -297,6 +317,14 @@ const LendCard = () => {
             <span>Your rate is encrypted and hidden from the server</span>
           </div>
         </div>
+
+        {/* Rate hint */}
+        {hasAmountAndDuration && rateEmpty && status !== "error" && (
+          <div className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl bg-amber-500/10 text-amber-400">
+            <AlertCircle className="w-4 h-4" />
+            <span>Please enter a rate to continue</span>
+          </div>
+        )}
 
         {/* Status */}
         {status !== "idle" && status !== "done" && (
@@ -320,7 +348,7 @@ const LendCard = () => {
         {authenticated ? (
           <button
             onClick={handleLend}
-            disabled={isProcessing}
+            disabled={isProcessing || rateEmpty}
             className="w-full disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
             style={{ backgroundColor: "#e2a9f1" }}
           >
@@ -365,7 +393,7 @@ const LendCard = () => {
                   </div>
                   <div>
                     <div className="text-sm font-medium text-foreground">
-                      {formatAmount(intent.amount)} gUSD
+                      {formatAmount(intent.amount)} {tokenSymbol(intent.token)}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {intent.intentId.slice(0, 8)}...

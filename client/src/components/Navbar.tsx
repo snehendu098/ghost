@@ -2,10 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Sun, Moon, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
-import { useTheme } from "next-themes";
+import { Bell, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
 const navItems = [
@@ -22,13 +21,91 @@ const moreLinks = [
   { label: "Docs", href: "#", external: true },
 ];
 
+// Hardcoded notifications — replace with real data later
+const HARDCODED_NOTIFICATIONS = [
+  {
+    id: "1",
+    type: "settle" as const,
+    title: "Borrow Settled",
+    message: "Your 800 gUSD borrow has been matched at 5.08% blended rate",
+    time: "2 min ago",
+    read: false,
+  },
+  {
+    id: "2",
+    type: "settle" as const,
+    title: "Lend Matched",
+    message: "Your 500 gUSD lend intent was matched with a borrower",
+    time: "5 min ago",
+    read: false,
+  },
+  {
+    id: "3",
+    type: "pool" as const,
+    title: "New Pool Added",
+    message: "gETH/gUSD lending pool is now live with 3 active lenders",
+    time: "12 min ago",
+    read: false,
+  },
+  {
+    id: "4",
+    type: "settle" as const,
+    title: "Loan Repaid",
+    message: "Borrower repaid 600 gUSD — your payout of 525 gUSD is ready",
+    time: "1 hr ago",
+    read: false,
+  },
+  {
+    id: "5",
+    type: "pool" as const,
+    title: "Pool Update",
+    message: "gUSD pool liquidity increased by 2,000 gUSD",
+    time: "3 hr ago",
+    read: true,
+  },
+  {
+    id: "6",
+    type: "settle" as const,
+    title: "Collateral Released",
+    message: "5 gETH collateral returned after full loan repayment",
+    time: "3 hr ago",
+    read: true,
+  },
+  {
+    id: "7",
+    type: "settle" as const,
+    title: "Proposal Auto-Accepted",
+    message: "Your 200 gUSD borrow proposal was auto-accepted after timeout",
+    time: "5 hr ago",
+    read: true,
+  },
+];
+
 const Navbar = () => {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState(HARDCODED_NOTIFICATIONS);
+  const notifRef = useRef<HTMLDivElement>(null);
   const { login, logout, authenticated, user } = usePrivy();
 
   const walletAddress = user?.wallet?.address;
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Close notification panel on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const markAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
 
   return (
     <header className="w-full">
@@ -42,9 +119,8 @@ const Navbar = () => {
               alt="Ghost"
               width={70}
               height={28}
-              
+
             />
-            {/* <span className="text-foreground font-semibold text-lg">GhostFi</span> */}
           </div>
 
           {/* Nav Items */}
@@ -70,11 +146,7 @@ const Navbar = () => {
             <div className="relative">
               <button
                 onClick={() => setMoreOpen(!moreOpen)}
-                className={`flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
-                  moreOpen
-                    ? "text-emerald-400"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className="flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
               >
                 More
                 {moreOpen ? (
@@ -140,14 +212,69 @@ const Navbar = () => {
           </nav>
         </div>
 
-        {/* Right section: Settings + Connect */}
+        {/* Right section: Notifications + Connect */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          {/* Notification Bell */}
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => setNotifOpen(!notifOpen)}
+              className="relative p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 leading-none">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <div className="absolute top-full right-0 mt-2 w-96 max-h-[480px] overflow-y-auto scrollbar-none bg-card/90 backdrop-blur-xl border border-border rounded-2xl shadow-2xl z-50" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Notifications</span>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllRead}
+                      className="text-xs text-muted-foreground hover:text-foreground font-medium cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                {/* Notification list */}
+                <div className="divide-y divide-border">
+                  {notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      className="px-5 py-3.5 flex gap-3 transition-colors hover:bg-muted/30"
+                    >
+                      {/* Icon */}
+                      <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-muted/50 text-muted-foreground">
+                        <Bell className="w-4 h-4" />
+                      </div>
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">{n.title}</span>
+                          {!n.read && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {n.message}
+                        </p>
+                        <span className="text-[11px] text-muted-foreground/60 mt-1 block">
+                          {n.time}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {authenticated ? (
             <button
