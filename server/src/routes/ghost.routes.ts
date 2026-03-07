@@ -84,8 +84,14 @@ ghostRoute.get("/collateral-quote", async (c: Context) => {
   const score = await getCreditScore(account);
   const multiplier = getCollateralMultiplier(score.tier);
   const borrowAmt = BigInt(amount);
-  const requiredValueUsd = (Number(borrowAmt) / 1e18) * multiplier;
-  const ethPrice = isEthCollateral ? await getEthPrice() : null;
+  const bt = token.toLowerCase();
+  const isBorrowEth = bt === config.GETH_ADDRESS.toLowerCase();
+  const needsEthPrice = isBorrowEth || isEthCollateral;
+  const ethPrice = needsEthPrice ? await getEthPrice() : null;
+  const borrowValueUsd = isBorrowEth
+    ? (Number(borrowAmt) / 1e18) * ethPrice!
+    : Number(borrowAmt) / 1e18;
+  const requiredValueUsd = borrowValueUsd * multiplier;
 
   const requiredCollateral = isUsdCollateral
     ? BigInt(Math.ceil(requiredValueUsd * 1e18))
@@ -137,6 +143,7 @@ ghostRoute.get("/lender-status/:address", async (c: Context) => {
     if (loan.status === "active") {
       activeLoans.push({
         loanId: loan.loanId,
+        token: loan.token,
         principal: lenderPrincipal.toString(),
         rate: weightedRate,
         expectedPayout: expectedPayout.toString(),
@@ -206,7 +213,13 @@ ghostRoute.get("/borrower-status/:address", async (c: Context) => {
   const completedLoans: any[] = [];
   for (const loan of loanDocs) {
     const principal = BigInt(loan.principal as string);
-    const totalDue = principal + BigInt(Math.floor(Number(principal) * (loan.effectiveBorrowerRate as number)));
+    const ticks = loan.matchedTicks as Array<{ amount: string; rate: number }>;
+    let totalDue = 0n;
+    for (const tick of ticks) {
+      const amt = BigInt(tick.amount);
+      totalDue += amt + BigInt(Math.floor(Number(amt) * tick.rate));
+    }
+    const effectiveRate = Number(totalDue - principal) / Number(principal);
 
     if (loan.status === "active") {
       const collateralAmount = BigInt(loan.collateralAmount as string);
@@ -215,7 +228,7 @@ ghostRoute.get("/borrower-status/:address", async (c: Context) => {
         loanId: loan.loanId,
         token: loan.token,
         principal: loan.principal,
-        effectiveRate: loan.effectiveBorrowerRate,
+        effectiveRate,
         totalDue: totalDue.toString(),
         repaidAmount: loan.repaidAmount,
         collateralToken: loan.collateralToken,
@@ -230,7 +243,7 @@ ghostRoute.get("/borrower-status/:address", async (c: Context) => {
         loanId: loan.loanId,
         token: loan.token,
         principal: loan.principal,
-        effectiveRate: loan.effectiveBorrowerRate,
+        effectiveRate,
         collateralToken: loan.collateralToken,
         collateralAmount: loan.collateralAmount,
         status: loan.status,

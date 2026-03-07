@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { Loader2, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
 import CoinSelector from "../borrow/CoinSelector";
 import {
   COINS,
@@ -52,7 +53,7 @@ interface LendIntent {
 
 const formatAmount = (wei: string) => {
   const num = Number(wei) / 1e18;
-  return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return num.toLocaleString(undefined, { maximumFractionDigits: 5 });
 };
 
 function friendlyError(err: unknown): string {
@@ -388,9 +389,7 @@ const LendCard = () => {
                 className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                    <DollarSign className="w-4 h-4 text-muted-foreground" />
-                  </div>
+                  <Image src={tokenSymbol(intent.token) === "gETH" ? "/geth.png" : "/gusd.png"} alt="" width={32} height={32} className="rounded-full" />
                   <div>
                     <div className="text-sm font-medium text-foreground">
                       {formatAmount(intent.amount)} {tokenSymbol(intent.token)}

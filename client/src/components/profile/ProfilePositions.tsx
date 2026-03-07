@@ -5,10 +5,10 @@ import { useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { formatTokenAmount } from "@/lib/pool-utils";
 import { COINS, GHOST_DOMAIN, REPAY_LOAN_TYPES } from "@/lib/constants";
 import { post, ts } from "@/lib/ghost";
+import Image from "next/image";
 
 interface ProfilePositionsProps {
   lendSlots: any[];
@@ -18,8 +18,14 @@ interface ProfilePositionsProps {
 }
 
 function tokenSymbol(address: string): string {
-  const coin = COINS.find((c) => c.address.toLowerCase() === address?.toLowerCase());
+  const coin = COINS.find(
+    (c) => c.address.toLowerCase() === address?.toLowerCase(),
+  );
   return coin?.symbol ?? "???";
+}
+
+function tokenImage(address: string): string {
+  return tokenSymbol(address) === "gETH" ? "/geth.png" : "/gusd.png";
 }
 
 function displayRate(loan: any): string {
@@ -29,25 +35,43 @@ function displayRate(loan: any): string {
   return `${(Number(r) * 100).toFixed(2)}%`;
 }
 
-const ProfilePositions = ({ lendSlots, borrowIntents, activeLoans, onRefresh }: ProfilePositionsProps) => {
+const ProfilePositions = ({
+  lendSlots,
+  borrowIntents,
+  activeLoans,
+  onRefresh,
+}: ProfilePositionsProps) => {
   const { wallets } = useWallets();
   const [repaying, setRepaying] = useState<string | null>(null);
 
-  const hasAny = lendSlots.length > 0 || borrowIntents.length > 0 || activeLoans.length > 0;
+  const hasAny =
+    lendSlots.length > 0 || borrowIntents.length > 0 || activeLoans.length > 0;
 
   const handleRepay = async (loan: any) => {
     const wallet = wallets[0];
     if (!wallet) return;
     try {
       setRepaying(loan.loanId);
-      const provider = new ethers.BrowserProvider(await wallet.getEthereumProvider());
+      const provider = new ethers.BrowserProvider(
+        await wallet.getEthereumProvider(),
+      );
       const signer = await provider.getSigner();
       const account = await signer.getAddress();
       const timestamp = ts();
       const amount = loan.totalDue;
       const message = { account, loanId: loan.loanId, amount, timestamp };
-      const auth = await signer.signTypedData(GHOST_DOMAIN, REPAY_LOAN_TYPES, message);
-      await post("/api/v1/repay", { account, loanId: loan.loanId, amount, timestamp, auth });
+      const auth = await signer.signTypedData(
+        GHOST_DOMAIN,
+        REPAY_LOAN_TYPES,
+        message,
+      );
+      await post("/api/v1/repay", {
+        account,
+        loanId: loan.loanId,
+        amount,
+        timestamp,
+        auth,
+      });
       onRefresh?.();
     } catch (err: any) {
       console.error("Repay failed:", err);
@@ -76,17 +100,30 @@ const ProfilePositions = ({ lendSlots, borrowIntents, activeLoans, onRefresh }: 
                 {lendSlots.map((slot: any, i: number) => (
                   <div
                     key={slot.slotId ?? i}
-                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                    className="flex items-center justify-between rounded-lg border p-3"
                   >
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium">
-                        {formatTokenAmount(slot.amount ?? "0")} {tokenSymbol(slot.token)}
-                      </p>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {slot.slotId?.slice(0, 8)}...
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <Image
+                        src={tokenImage(slot.token)}
+                        alt=""
+                        width={28}
+                        height={28}
+                        className="rounded-full"
+                      />
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">
+                          {formatTokenAmount(slot.amount ?? "0")}{" "}
+                          {tokenSymbol(slot.token)}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {slot.slotId?.slice(0, 8)}...
+                        </p>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
+                    <Badge
+                      variant="outline"
+                      className="text-emerald-500 border-emerald-500/30"
+                    >
                       {slot.status ?? "pending"}
                     </Badge>
                   </div>
@@ -95,81 +132,140 @@ const ProfilePositions = ({ lendSlots, borrowIntents, activeLoans, onRefresh }: 
             )}
 
             {borrowIntents.length > 0 && (
-              <>
-                {lendSlots.length > 0 && <Separator />}
-                <div className="space-y-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
-                    Borrow Intents ({borrowIntents.length})
-                  </p>
-                  {borrowIntents.map((intent: any, i: number) => (
-                    <div
-                      key={intent.intentId ?? i}
-                      className="flex items-center justify-between rounded-lg border border-border p-3"
-                    >
+              <div className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
+                  Borrow Intents ({borrowIntents.length})
+                </p>
+                {borrowIntents.map((intent: any, i: number) => (
+                  <div
+                    key={intent.intentId ?? i}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Image
+                        src={tokenImage(intent.token)}
+                        alt=""
+                        width={28}
+                        height={28}
+                        className="rounded-full"
+                      />
                       <div className="space-y-0.5">
                         <p className="text-sm font-medium">
-                          {formatTokenAmount(intent.amount ?? "0")} {tokenSymbol(intent.token)}
+                          {formatTokenAmount(intent.amount ?? "0")}{" "}
+                          {tokenSymbol(intent.token)}
                         </p>
                         <p className="text-xs text-muted-foreground font-mono">
                           {intent.intentId?.slice(0, 8)}...
                         </p>
                       </div>
-                      <Badge variant="outline" className="text-orange-400 border-orange-400/30">
-                        {intent.status ?? "pending"}
-                      </Badge>
                     </div>
-                  ))}
-                </div>
-              </>
+                    <Badge
+                      variant="outline"
+                      className="text-orange-400 border-orange-400/30"
+                    >
+                      {intent.status ?? "pending"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
             )}
 
-            {activeLoans.length > 0 && (
-              <>
-                {(lendSlots.length > 0 || borrowIntents.length > 0) && <Separator />}
-                <div className="space-y-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
-                    Active Loans ({activeLoans.length})
-                  </p>
-                  {activeLoans.map((loan: any, i: number) => {
-                    const isBorrower = !!loan.totalDue;
-                    return (
-                      <div
-                        key={loan.loanId ?? i}
-                        className="flex items-center justify-between rounded-lg border border-border p-3"
-                      >
+            {activeLoans.filter((l: any) => !!l.totalDue).length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
+                  Borrowed Loans (
+                  {activeLoans.filter((l: any) => !!l.totalDue).length})
+                </p>
+                {activeLoans
+                  .filter((l: any) => !!l.totalDue)
+                  .map((loan: any, i: number) => (
+                    <div
+                      key={i}
+                      className="flex items-center border justify-between rounded-lg p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Image
+                          src={tokenImage(loan.token)}
+                          alt=""
+                          width={28}
+                          height={28}
+                          className="rounded-full"
+                        />
                         <div className="space-y-0.5">
                           <p className="text-sm font-medium">
-                            {formatTokenAmount(loan.principal ?? "0")} {tokenSymbol(loan.token)}
+                            {formatTokenAmount(loan.principal ?? "0")}{" "}
+                            {tokenSymbol(loan.token)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Rate: {displayRate(loan)}
                           </p>
-                          {isBorrower && (
-                            <p className="text-xs text-muted-foreground">
-                              Due: {formatTokenAmount(loan.totalDue)} {tokenSymbol(loan.token)}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {isBorrower && (
-                            <button
-                              onClick={() => handleRepay(loan)}
-                              disabled={repaying === loan.loanId}
-                              className="px-3 py-1 rounded-full text-xs font-semibold text-gray-900 transition-colors cursor-pointer disabled:opacity-50"
-                              style={{ backgroundColor: "#e2a9f1" }}
-                            >
-                              {repaying === loan.loanId ? "Repaying..." : "Repay"}
-                            </button>
-                          )}
-                          <Badge variant="outline" className="text-[#e2a9f1] border-[#e2a9f1]/30">
-                            {loan.status ?? "active"}
-                          </Badge>
+                          <p className="text-xs text-muted-foreground">
+                            Due: {formatTokenAmount(loan.totalDue)}{" "}
+                            {tokenSymbol(loan.token)}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleRepay(loan)}
+                          disabled={repaying === loan.loanId}
+                          className="px-3 py-1 rounded-full text-xs font-semibold text-gray-900 transition-colors cursor-pointer disabled:opacity-50"
+                          style={{ backgroundColor: "#e2a9f1" }}
+                        >
+                          {repaying === loan.loanId ? "Repaying..." : "Repay"}
+                        </button>
+                        <Badge
+                          variant="outline"
+                          className="text-[#e2a9f1] border-[#e2a9f1]/30"
+                        >
+                          {loan.status ?? "active"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {activeLoans.filter((l: any) => !l.totalDue).length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
+                  Lent Loans (
+                  {activeLoans.filter((l: any) => !l.totalDue).length})
+                </p>
+                {activeLoans
+                  .filter((l: any) => !l.totalDue)
+                  .map((loan: any, i: number) => (
+                    <div
+                      key={i}
+                      className="flex items-center border justify-between rounded-lg p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Image
+                          src={tokenImage(loan.token)}
+                          alt=""
+                          width={28}
+                          height={28}
+                          className="rounded-full"
+                        />
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium">
+                            {formatTokenAmount(loan.principal ?? "0")}{" "}
+                            {tokenSymbol(loan.token)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Rate: {displayRate(loan)}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-[#e2a9f1] border-[#e2a9f1]/30"
+                      >
+                        {loan.status ?? "active"}
+                      </Badge>
+                    </div>
+                  ))}
+              </div>
             )}
           </>
         )}
