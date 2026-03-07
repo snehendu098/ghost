@@ -2,27 +2,22 @@ const categories = [
   {
     title: "Borrow",
     description: "Submit a borrow intent with encrypted max rate. Deposit collateral based on your credit tier.",
-    icons: ["bg-indigo-600", "bg-purple-600"],
   },
   {
     title: "Lend",
     description: "Deposit gUSD at your chosen rate. Your rate is sealed — only Chainlink CRE can read it.",
-    icons: ["bg-emerald-500", "bg-teal-500"],
   },
   {
     title: "Rate Discovery",
     description: "CRE decrypts all rates, builds a tick book, and matches borrowers to the cheapest available lenders.",
-    icons: ["bg-blue-600", "bg-cyan-500"],
   },
   {
     title: "Settlement",
     description: "Matched loans are settled on-chain via the vault. Collateral is locked, funds are transferred privately.",
-    icons: ["bg-orange-500", "bg-amber-500"],
   },
   {
     title: "Repayment & Credit",
     description: "Repay loans to improve your credit tier. Higher tiers unlock lower collateral requirements.",
-    icons: ["bg-pink-500", "bg-rose-500"],
   },
 ];
 
@@ -51,16 +46,7 @@ const IntegrationsSection = () => {
                 <p className="text-xs text-muted-foreground">{cat.description}</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end max-w-[180px]">
-                {cat.icons.map((color, i) => (
-                  <div
-                    key={i}
-                    className={`h-9 w-9 rounded-full ${color} flex items-center justify-center`}
-                  >
-                    <span className="text-white text-xs font-medium">
-                      {cat.title[0]}
-                    </span>
-                  </div>
-                ))}
+               
               </div>
             </div>
           ))}

@@ -1,8 +1,12 @@
+import Link from "next/link";
 import type { FeaturedPool } from "./data/mockData";
 
 const FeaturedCard = ({ pool }: { pool: FeaturedPool }) => {
   return (
-    <div className="flex-shrink-0 w-[270px] rounded-xl border border-border bg-card p-5 flex flex-col justify-between gap-5 cursor-pointer transition-colors hover:border-zinc-600">
+    <Link
+      href={`/explore/${pool.ticker}`}
+      className="flex-shrink-0 w-[270px] rounded-xl border border-border bg-card p-5 flex flex-col justify-between gap-5 cursor-pointer transition-colors hover:border-zinc-600"
+    >
       {/* Top: icon + name/ticker */}
       <div className="flex items-center gap-3">
         <img
@@ -23,7 +27,7 @@ const FeaturedCard = ({ pool }: { pool: FeaturedPool }) => {
         </span>
         <span className="text-xs text-muted-foreground">Sepolia</span>
       </div>
-    </div>
+    </Link>
   );
 };
 

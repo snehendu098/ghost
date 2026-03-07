@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import type { PoolRow } from "./data/mockData";
 import { gUSD, gETH } from "@/lib/constants";
 
@@ -8,10 +11,14 @@ const contractAddress = (ticker: string) => {
 };
 
 const PoolTableRow = ({ row }: { row: PoolRow }) => {
+  const router = useRouter();
   const address = contractAddress(row.ticker);
 
   return (
-    <tr className="border-b border-border transition-colors hover:bg-accent/50 cursor-pointer">
+    <tr
+      className="border-b border-border transition-colors hover:bg-accent/50 cursor-pointer"
+      onClick={() => router.push(`/explore/${row.ticker}`)}
+    >
       <td className="py-4 px-4 text-sm text-muted-foreground">{row.rank}</td>
       <td className="py-4 px-4">
         <div className="flex items-center gap-3">

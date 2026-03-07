@@ -2,12 +2,11 @@ const articles = [
   {
     title: "Ghost Protocol: Private P2P Lending Explained",
     description: "How sealed-rate auctions and Chainlink CRE enable trustless, private lending.",
-    color: "bg-gradient-to-br from-indigo-500 to-purple-500",
+   
   },
   {
     title: "Credit Tiers & Collateral: How Reputation Works",
     description: "Repay loans to move from Bronze (2x) to Platinum (1.1x) collateral requirements.",
-    color: "bg-gradient-to-br from-emerald-500 to-teal-400",
   },
 ];
 
@@ -26,8 +25,7 @@ const LearnMoreSection = () => {
               href="#"
               className="flex items-center gap-5 rounded-xl border border-border p-4 transition-colors hover:bg-accent/50 cursor-pointer group"
             >
-              {/* Thumbnail */}
-              <div className={`h-16 w-16 rounded-xl ${article.color} flex-shrink-0`} />
+              
 
               <div className="space-y-1 min-w-0">
                 <h3 className="text-sm font-semibold text-foreground group-hover:text-emerald-400 transition-colors">

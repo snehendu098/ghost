@@ -1,47 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { get } from "@/lib/ghost";
-import { gUSD, gETH } from "@/lib/constants";
 import PoolTableRow from "./PoolTableRow";
 import type { PoolRow } from "./data/mockData";
 
 const headers = ["#", "Name", "Lend Intents", "Borrow Intents", "Network", "Contract"];
 
-const PoolTable = () => {
-  const [rows, setRows] = useState<PoolRow[]>([]);
+interface PoolTableProps {
+  rows: PoolRow[];
+}
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await get("/api/v1/internal/pending-intents");
-        const lendIntents = data.lendIntents ?? [];
-        const borrowIntents = data.borrowIntents ?? [];
-
-        const gusdLends = lendIntents.filter(
-          (i: any) => i.token?.toLowerCase() === gUSD.toLowerCase()
-        ).length;
-        const gusdBorrows = borrowIntents.filter(
-          (i: any) => i.token?.toLowerCase() === gUSD.toLowerCase()
-        ).length;
-        const gethBorrows = borrowIntents.filter(
-          (i: any) => i.token?.toLowerCase() === gETH.toLowerCase()
-        ).length;
-
-        setRows([
-          { rank: 1, name: "Ghost USD", ticker: "gUSD", iconSrc: "/gusd.png", lendIntents: gusdLends, borrowIntents: gusdBorrows },
-          { rank: 2, name: "Ghost ETH", ticker: "gETH", iconSrc: "/geth.png", lendIntents: 0, borrowIntents: gethBorrows },
-        ]);
-      } catch {
-        setRows([
-          { rank: 1, name: "Ghost USD", ticker: "gUSD", iconSrc: "/gusd.png", lendIntents: 0, borrowIntents: 0 },
-          { rank: 2, name: "Ghost ETH", ticker: "gETH", iconSrc: "/geth.png", lendIntents: 0, borrowIntents: 0 },
-        ]);
-      }
-    };
-    load();
-  }, []);
-
+const PoolTable = ({ rows }: PoolTableProps) => {
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full">
@@ -58,9 +26,15 @@ const PoolTable = () => {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <PoolTableRow key={row.rank} row={row} />
-          ))}
+          {rows.length > 0 ? (
+            rows.map((row) => <PoolTableRow key={row.rank} row={row} />)
+          ) : (
+            <tr>
+              <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                No pools match your filters
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
