@@ -5,6 +5,7 @@ function required(key: string): string {
 }
 
 export const config = {
+  MONGODB_URI: process.env.MONGODB_URI ?? "mongodb://localhost:27017/ghost",
   POOL_PRIVATE_KEY: process.env.POOL_PRIVATE_KEY ?? "",
   TOKEN_ADDRESS: required("TOKEN_ADDRESS"),
   CRE_PUBLIC_KEY: required("CRE_PUBLIC_KEY"),

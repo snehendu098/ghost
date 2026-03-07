@@ -67,8 +67,10 @@ function friendlyError(err: unknown): string {
   if (!(err instanceof Error)) return "Transaction failed";
   const e = err as any;
   const code = e?.code ?? e?.info?.error?.code;
-  if (code === "ACTION_REJECTED" || code === 4001) return "Transaction rejected";
-  const msg = e?.shortMessage ?? e?.reason ?? e?.message ?? "Something went wrong";
+  if (code === "ACTION_REJECTED" || code === 4001)
+    return "Transaction rejected";
+  const msg =
+    e?.shortMessage ?? e?.reason ?? e?.message ?? "Something went wrong";
   return msg.length > 120 ? msg.slice(0, 120) + "..." : msg;
 }
 
@@ -123,7 +125,11 @@ const StatusTab = () => {
       const timestamp = ts();
 
       const message = { account, intentId, timestamp };
-      const auth = await signer.signTypedData(GHOST_DOMAIN, CANCEL_BORROW_TYPES, message);
+      const auth = await signer.signTypedData(
+        GHOST_DOMAIN,
+        CANCEL_BORROW_TYPES,
+        message,
+      );
       await post("/api/v1/cancel-borrow", { ...message, auth });
       await loadStatus();
     } catch (err: unknown) {
@@ -148,7 +154,11 @@ const StatusTab = () => {
       const timestamp = ts();
 
       const message = { account, slotId, timestamp };
-      const auth = await signer.signTypedData(GHOST_DOMAIN, CANCEL_LEND_TYPES, message);
+      const auth = await signer.signTypedData(
+        GHOST_DOMAIN,
+        CANCEL_LEND_TYPES,
+        message,
+      );
       await post("/api/v1/cancel-lend", { ...message, auth });
       await loadStatus();
     } catch (err: unknown) {
@@ -173,7 +183,11 @@ const StatusTab = () => {
       const timestamp = ts();
 
       const message = { account, loanId, timestamp };
-      const auth = await signer.signTypedData(GHOST_DOMAIN, CLAIM_EXCESS_COLLATERAL_TYPES, message);
+      const auth = await signer.signTypedData(
+        GHOST_DOMAIN,
+        CLAIM_EXCESS_COLLATERAL_TYPES,
+        message,
+      );
       await post("/api/v1/claim-excess-collateral", { ...message, auth });
       await loadStatus();
     } catch (err: unknown) {
@@ -230,7 +244,9 @@ const StatusTab = () => {
       {/* Borrow Intents */}
       {borrowIntents.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-medium text-foreground">Borrow Intents</h2>
+          <h2 className="text-lg font-medium text-foreground">
+            Borrow Intents
+          </h2>
           <div className="space-y-2">
             {borrowIntents.map((intent) => (
               <div
@@ -246,7 +262,8 @@ const StatusTab = () => {
                       {formatAmount(intent.amount)} {tokenSymbol(intent.token)}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Collateral: {formatAmount(intent.collateralAmount)} {tokenSymbol(intent.collateralToken)}
+                      Collateral: {formatAmount(intent.collateralAmount)}{" "}
+                      {tokenSymbol(intent.collateralToken)}
                     </div>
                   </div>
                 </div>
@@ -266,7 +283,9 @@ const StatusTab = () => {
                       disabled={cancelling === intent.intentId}
                       className="text-xs text-red-400 hover:text-red-300 font-medium cursor-pointer disabled:opacity-50"
                     >
-                      {cancelling === intent.intentId ? "Cancelling..." : "Cancel"}
+                      {cancelling === intent.intentId
+                        ? "Cancelling..."
+                        : "Cancel"}
                     </button>
                   )}
                 </div>
@@ -320,7 +339,9 @@ const StatusTab = () => {
       {/* Active Borrow Loans */}
       {borrowLoans.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-medium text-foreground">Active Loans (Borrowing)</h2>
+          <h2 className="text-lg font-medium text-foreground">
+            Active Loans (Borrowing)
+          </h2>
           <div className="space-y-2">
             {borrowLoans.map((loan) => (
               <div
@@ -341,24 +362,66 @@ const StatusTab = () => {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <div>Rate: <span className="text-foreground">{((loan.effectiveRate ?? 0) * 100).toFixed(2)}%</span></div>
-                  <div>Due: <span className="text-foreground">{loan.totalDue ? formatAmount(loan.totalDue) : "—"} {tokenSymbol(loan.token)}</span></div>
-                  <div>Repaid: <span className="text-foreground">{loan.repaidAmount ? formatAmount(loan.repaidAmount) : "0"}</span></div>
-                  <div>Maturity: <span className="text-foreground">{loan.maturityDate ? new Date(loan.maturityDate).toLocaleDateString() : "—"}</span></div>
+                  <div>
+                    Rate:{" "}
+                    <span className="text-foreground">
+                      {((loan.effectiveRate ?? 0) * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                  <div>
+                    Due:{" "}
+                    <span className="text-foreground">
+                      {loan.totalDue ? formatAmount(loan.totalDue) : "—"}{" "}
+                      {tokenSymbol(loan.token)}
+                    </span>
+                  </div>
+                  <div>
+                    Repaid:{" "}
+                    <span className="text-foreground">
+                      {loan.repaidAmount
+                        ? formatAmount(loan.repaidAmount)
+                        : "0"}
+                    </span>
+                  </div>
+                  <div>
+                    Maturity:{" "}
+                    <span className="text-foreground">
+                      {loan.maturityDate
+                        ? new Date(loan.maturityDate).toLocaleDateString()
+                        : "—"}
+                    </span>
+                  </div>
                   {loan.collateralToken && (
-                    <div>Collateral: <span className="text-foreground">{loan.collateralAmount ? formatAmount(loan.collateralAmount) : "0"} {tokenSymbol(loan.collateralToken)}</span></div>
+                    <div>
+                      Collateral:{" "}
+                      <span className="text-foreground">
+                        {loan.collateralAmount
+                          ? formatAmount(loan.collateralAmount)
+                          : "0"}{" "}
+                        {tokenSymbol(loan.collateralToken)}
+                      </span>
+                    </div>
                   )}
-                  {loan.excessCollateral && Number(loan.excessCollateral) > 0 && (
-                    <div>Excess: <span className="text-emerald-400">{formatAmount(loan.excessCollateral)} {tokenSymbol(loan.collateralToken!)}</span></div>
-                  )}
+                  {loan.excessCollateral &&
+                    Number(loan.excessCollateral) > 0 && (
+                      <div>
+                        Excess:{" "}
+                        <span className="text-emerald-400">
+                          {formatAmount(loan.excessCollateral)}{" "}
+                          {tokenSymbol(loan.collateralToken!)}
+                        </span>
+                      </div>
+                    )}
                 </div>
                 {loan.excessCollateral && Number(loan.excessCollateral) > 0 && (
                   <button
                     onClick={() => handleClaimExcess(loan.loanId)}
                     disabled={cancelling === `claim-${loan.loanId}`}
-                    className="w-full mt-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 text-xs font-medium py-2 rounded-xl transition-colors cursor-pointer"
+                    className="w-full mt-1 bg-new-pink disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 text-sm font-medium py-2 rounded-lg transition-colors cursor-pointer"
                   >
-                    {cancelling === `claim-${loan.loanId}` ? "Withdrawing..." : `Withdraw Excess Collateral (${formatAmount(loan.excessCollateral)} ${tokenSymbol(loan.collateralToken!)})`}
+                    {cancelling === `claim-${loan.loanId}`
+                      ? "Withdrawing..."
+                      : `Withdraw (${formatAmount(loan.excessCollateral)} ${tokenSymbol(loan.collateralToken!)})`}
                   </button>
                 )}
               </div>
@@ -370,7 +433,9 @@ const StatusTab = () => {
       {/* Active Lend Loans */}
       {lendLoans.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-lg font-medium text-foreground">Active Loans (Lending)</h2>
+          <h2 className="text-lg font-medium text-foreground">
+            Active Loans (Lending)
+          </h2>
           <div className="space-y-2">
             {lendLoans.map((loan) => (
               <div
@@ -391,9 +456,32 @@ const StatusTab = () => {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <div>Rate: <span className="text-foreground">{((loan.effectiveRate ?? (loan as any).rate ?? 0) * 100).toFixed(2)}%</span></div>
-                  <div>Payout: <span className="text-foreground">{loan.expectedPayout ? formatAmount(loan.expectedPayout) : "—"} gUSD</span></div>
-                  <div>Maturity: <span className="text-foreground">{loan.maturityDate ? new Date(loan.maturityDate).toLocaleDateString() : "—"}</span></div>
+                  <div>
+                    Rate:{" "}
+                    <span className="text-foreground">
+                      {(
+                        (loan.effectiveRate ?? (loan as any).rate ?? 0) * 100
+                      ).toFixed(2)}
+                      %
+                    </span>
+                  </div>
+                  <div>
+                    Payout:{" "}
+                    <span className="text-foreground">
+                      {loan.expectedPayout
+                        ? formatAmount(loan.expectedPayout)
+                        : "—"}{" "}
+                      gUSD
+                    </span>
+                  </div>
+                  <div>
+                    Maturity:{" "}
+                    <span className="text-foreground">
+                      {loan.maturityDate
+                        ? new Date(loan.maturityDate).toLocaleDateString()
+                        : "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}

@@ -1,70 +1,92 @@
-import { Context } from "hono";
-import { state } from "../state";
+import type { Context } from "hono";
 import { getPoolAddress } from "../external-api";
-import type { MatchProposal } from "../types";
+import { getEthPrice } from "../price";
+import { config } from "../config";
+import LendIntentModel from "../models/lend-intent.model";
+import BorrowIntentModel from "../models/borrow-intent.model";
+import MatchProposalModel from "../models/match-proposal.model";
+import LoanModel from "../models/loan.model";
+import PendingTransferModel from "../models/pending-transfer.model";
+import CreditScoreModel from "../models/credit-score.model";
+import {
+  debitBalance,
+  queueTransfer,
+  getCreditScore,
+  getCollateralMultiplier,
+  downgradeTier,
+} from "../state";
 
 export const getPendingIntents = async (c: Context) => {
-  // Active lends not locked in pending proposals
+  const pendingProposals = await MatchProposalModel.find({ status: "pending" }).lean();
   const lockedLendIds = new Set<string>();
-  for (const proposal of Array.from(state.matchProposals.values())) {
-    if (proposal.status === "pending") {
-      for (const tick of proposal.matchedTicks) {
-        lockedLendIds.add(tick.lendIntentId);
-      }
+  for (const proposal of pendingProposals) {
+    for (const tick of proposal.matchedTicks) {
+      lockedLendIds.add(tick.lendIntentId as string);
     }
   }
 
-  const lendIntents = Array.from(state.activeBuffer.values())
-    .filter((l) => !lockedLendIds.has(l.intentId))
+  const allLends = await LendIntentModel.find({}).lean();
+  const lendIntents = allLends
+    .filter((l) => !lockedLendIds.has(l.intentId as string))
     .map((l) => ({
-      ...l,
-      amount: l.amount.toString(),
+      intentId: l.intentId,
+      userId: l.userId,
+      token: l.token,
+      amount: l.amount,
+      encryptedRate: l.encryptedRate,
+      epochId: l.epochId,
+      createdAt: l.createdAt,
     }));
 
-  const borrowIntents = Array.from(state.borrowIntents.values())
-    .filter((b) => b.status === "pending")
-    .map((b) => ({
-      ...b,
-      amount: b.amount.toString(),
-      collateralAmount: b.collateralAmount.toString(),
-    }));
+  const borrowIntents = await BorrowIntentModel.find({ status: "pending" }).lean();
+  const mappedBorrows = borrowIntents.map((b) => ({
+    intentId: b.intentId,
+    borrower: b.borrower,
+    token: b.token,
+    amount: b.amount,
+    encryptedMaxRate: b.encryptedMaxRate,
+    collateralToken: b.collateralToken,
+    collateralAmount: b.collateralAmount,
+    status: b.status,
+    createdAt: b.createdAt,
+  }));
 
-  return c.json({ lendIntents, borrowIntents });
+  return c.json({ lendIntents, borrowIntents: mappedBorrows });
 };
 
 export const recordMatchProposals = async (c: Context) => {
   const { proposals } = await c.req.json();
-
   if (!Array.isArray(proposals))
     return c.json({ error: "proposals must be an array" }, 400);
 
   let recorded = 0;
   for (const p of proposals) {
-    const proposal: MatchProposal = {
-      proposalId: p.proposalId ?? crypto.randomUUID(),
+    const proposalId = p.proposalId ?? crypto.randomUUID();
+    await MatchProposalModel.create({
+      proposalId,
       borrowIntentId: p.borrowIntentId,
       borrower: p.borrower.toLowerCase(),
       token: p.token.toLowerCase(),
-      principal: BigInt(p.principal),
+      principal: BigInt(p.principal).toString(),
       matchedTicks: p.matchedTicks.map((t: any) => ({
         lender: t.lender.toLowerCase(),
         lendIntentId: t.lendIntentId,
-        amount: BigInt(t.amount),
+        amount: BigInt(t.amount).toString(),
         rate: Number(t.rate),
       })),
       effectiveBorrowerRate: Number(p.effectiveBorrowerRate),
       collateralToken: p.collateralToken.toLowerCase(),
-      collateralAmount: BigInt(p.collateralAmount),
+      collateralAmount: BigInt(p.collateralAmount).toString(),
       status: "pending",
       createdAt: Date.now(),
-      expiresAt: Date.now() + 5 * 1000, // 5 sec (short for demo)
-    };
+      expiresAt: Date.now() + 5 * 1000,
+    });
 
-    state.matchProposals.set(proposal.proposalId, proposal);
-
-    // Set borrow intent to "proposed"
-    const borrowIntent = state.borrowIntents.get(proposal.borrowIntentId);
-    if (borrowIntent) borrowIntent.status = "proposed";
+    const borrowIntent = await BorrowIntentModel.findOne({ intentId: p.borrowIntentId });
+    if (borrowIntent) {
+      borrowIntent.status = "proposed";
+      await borrowIntent.save();
+    }
 
     recorded++;
   }
@@ -77,49 +99,77 @@ export const expireProposals = async (c: Context) => {
   let autoAccepted = 0;
   const errors: string[] = [];
 
-  for (const proposal of Array.from(state.matchProposals.values())) {
-    if (proposal.status !== "pending" || now <= proposal.expiresAt) continue;
+  const pendingProposals = await MatchProposalModel.find({
+    status: "pending",
+    expiresAt: { $lt: now },
+  });
 
+  for (const proposal of pendingProposals) {
     try {
-      // Auto-accept: create loan
       const loanId = crypto.randomUUID();
-      state.loans.set(loanId, {
+
+      // Compute requiredCollateral (bug fix)
+      const ct = (proposal.collateralToken as string).toLowerCase();
+      const isUsdCollateral = ct === config.TOKEN_ADDRESS.toLowerCase();
+      const score = await getCreditScore(proposal.borrower as string);
+      const multiplier = getCollateralMultiplier(score.tier);
+      const principalBig = BigInt(proposal.principal as string);
+      const requiredValueUsd = (Number(principalBig) / 1e18) * multiplier;
+      let requiredCollateral: bigint;
+      if (isUsdCollateral) {
+        requiredCollateral = BigInt(Math.ceil(requiredValueUsd * 1e18));
+      } else {
+        const ethPrice = await getEthPrice();
+        requiredCollateral = BigInt(Math.ceil((requiredValueUsd / ethPrice) * 1e18));
+      }
+      const collateralAmountBig = BigInt(proposal.collateralAmount as string);
+      if (requiredCollateral > collateralAmountBig) requiredCollateral = collateralAmountBig;
+
+      await LoanModel.create({
         loanId,
         borrower: proposal.borrower,
         token: proposal.token,
-        principal: proposal.principal,
+        principal: (proposal.principal as string),
         matchedTicks: proposal.matchedTicks,
         effectiveBorrowerRate: proposal.effectiveBorrowerRate,
         collateralToken: proposal.collateralToken,
-        collateralAmount: proposal.collateralAmount,
+        collateralAmount: (proposal.collateralAmount as string),
+        requiredCollateral: requiredCollateral.toString(),
         maturity: Date.now() + 30 * 24 * 60 * 60 * 1000,
         status: "active",
-        repaidAmount: BigInt(0),
+        repaidAmount: "0",
       });
 
       proposal.status = "accepted";
+      await proposal.save();
 
-      const borrowIntent = state.borrowIntents.get(proposal.borrowIntentId);
-      if (borrowIntent) borrowIntent.status = "matched";
+      const borrowIntent = await BorrowIntentModel.findOne({ intentId: proposal.borrowIntentId });
+      if (borrowIntent) {
+        borrowIntent.status = "matched";
+        await borrowIntent.save();
+      }
 
       // Consume lend ticks + debit lender balances
       for (const tick of proposal.matchedTicks) {
-        const lendIntent = state.activeBuffer.get(tick.lendIntentId);
+        const lendIntent = await LendIntentModel.findOne({ intentId: tick.lendIntentId });
         if (lendIntent) {
-          if (tick.amount >= lendIntent.amount) {
-            state.activeBuffer.delete(tick.lendIntentId);
+          const tickAmount = BigInt(tick.amount as string);
+          const lendAmount = BigInt(lendIntent.amount as string);
+          if (tickAmount >= lendAmount) {
+            await LendIntentModel.deleteOne({ intentId: tick.lendIntentId });
           } else {
-            lendIntent.amount -= tick.amount;
+            lendIntent.amount = (lendAmount - tickAmount).toString();
+            await lendIntent.save();
           }
         }
-        state.debitBalance(tick.lender, proposal.token, tick.amount);
+        await debitBalance(tick.lender as string, proposal.token as string, BigInt(tick.amount as string));
       }
 
-      // Queue principal disbursement for CRE to execute
-      state.queueTransfer(
-        proposal.borrower,
-        proposal.token,
-        proposal.principal.toString(),
+      // Queue principal disbursement
+      await queueTransfer(
+        proposal.borrower as string,
+        proposal.token as string,
+        proposal.principal as string,
         "disburse"
       );
 
@@ -133,26 +183,43 @@ export const expireProposals = async (c: Context) => {
 };
 
 export const checkLoans = async (c: Context) => {
-  const loans = Array.from(state.loans.values())
-    .filter((l) => l.status === "active")
-    .map((l) => ({
-      ...l,
-      principal: l.principal.toString(),
-      collateralAmount: l.collateralAmount.toString(),
-      repaidAmount: l.repaidAmount.toString(),
-      matchedTicks: l.matchedTicks.map((t: { lender: string; lendIntentId: string; amount: bigint; rate: number }) => ({
-        ...t,
-        amount: t.amount.toString(),
+  const loans = await LoanModel.find({ status: "active" }).lean();
+  return c.json({
+    loans: loans.map((l) => ({
+      loanId: l.loanId,
+      borrower: l.borrower,
+      token: l.token,
+      principal: l.principal,
+      collateralAmount: l.collateralAmount,
+      requiredCollateral: l.requiredCollateral,
+      repaidAmount: l.repaidAmount,
+      effectiveBorrowerRate: l.effectiveBorrowerRate,
+      collateralToken: l.collateralToken,
+      maturity: l.maturity,
+      status: l.status,
+      matchedTicks: l.matchedTicks.map((t) => ({
+        lender: t.lender,
+        lendIntentId: t.lendIntentId,
+        amount: t.amount,
+        rate: t.rate,
       })),
-    }));
-
-  return c.json({ loans });
+    })),
+  });
 };
 
 export const getPendingTransfers = async (c: Context) => {
-  const transfers = Array.from(state.pendingTransfers.values())
-    .filter((t) => t.status === "pending");
-  return c.json({ transfers });
+  const transfers = await PendingTransferModel.find({ status: "pending" }).lean();
+  return c.json({
+    transfers: transfers.map((t) => ({
+      id: t.transferId,
+      recipient: t.recipient,
+      token: t.token,
+      amount: t.amount,
+      reason: t.reason,
+      createdAt: t.createdAt,
+      status: t.status,
+    })),
+  });
 };
 
 export const confirmTransfers = async (c: Context) => {
@@ -162,9 +229,10 @@ export const confirmTransfers = async (c: Context) => {
 
   let confirmed = 0;
   for (const id of transferIds) {
-    const transfer = state.pendingTransfers.get(id);
-    if (transfer && transfer.status === "pending") {
+    const transfer = await PendingTransferModel.findOne({ transferId: id, status: "pending" });
+    if (transfer) {
       transfer.status = "completed";
+      await transfer.save();
       confirmed++;
     }
   }
@@ -181,37 +249,42 @@ export const liquidateLoans = async (c: Context) => {
   const transfers: string[] = [];
 
   for (const loanId of loanIds) {
-    const loan = state.loans.get(loanId);
+    const loan = await LoanModel.findOne({ loanId });
     if (!loan || loan.status !== "active") continue;
 
     loan.status = "defaulted";
+    await loan.save();
 
-    // Downgrade borrower credit + record default
-    const score = state.getCreditScore(loan.borrower);
-    score.loansDefaulted++;
-    state.downgradeTier(loan.borrower);
+    const score = await getCreditScore(loan.borrower as string);
+    await CreditScoreModel.updateOne(
+      { address: (loan.borrower as string).toLowerCase() },
+      { $inc: { loansDefaulted: 1 } }
+    );
+    await downgradeTier(loan.borrower as string);
 
-    // Split collateral: 5% protocol fee to pool, 95% pro-rata to lenders
-    const protocolFee = loan.collateralAmount * 5n / 100n;
-    const lenderPool = loan.collateralAmount - protocolFee;
+    const collateralAmount = BigInt(loan.collateralAmount as string);
+    const protocolFee = collateralAmount * 5n / 100n;
+    const lenderPool = collateralAmount - protocolFee;
 
-    // Protocol fee transfer to pool
-    const feeId = state.queueTransfer(
+    const feeId = await queueTransfer(
       poolAddress,
-      loan.collateralToken,
+      loan.collateralToken as string,
       protocolFee.toString(),
       "liquidate"
     );
     transfers.push(feeId);
 
-    // Pro-rata distribution to each lender by principal share
-    const totalPrincipal = loan.matchedTicks.reduce((sum, t) => sum + t.amount, 0n);
+    const totalPrincipal = loan.matchedTicks.reduce(
+      (sum, t) => sum + BigInt(t.amount as string),
+      0n
+    );
     for (const tick of loan.matchedTicks) {
-      const lenderShare = lenderPool * tick.amount / totalPrincipal;
+      const tickAmount = BigInt(tick.amount as string);
+      const lenderShare = lenderPool * tickAmount / totalPrincipal;
       if (lenderShare > 0n) {
-        const tid = state.queueTransfer(
-          tick.lender,
-          loan.collateralToken,
+        const tid = await queueTransfer(
+          tick.lender as string,
+          loan.collateralToken as string,
           lenderShare.toString(),
           "liquidate"
         );

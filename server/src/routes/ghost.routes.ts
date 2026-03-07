@@ -21,7 +21,13 @@ import {
   liquidateLoans,
 } from "../controllers/internal.controllers";
 import { repayLoan } from "../controllers/repay.controllers";
-import { state, getCollateralMultiplier } from "../state";
+import { getCollateralMultiplier, getCreditScore } from "../state";
+import DepositSlotModel from "../models/deposit-slot.model";
+import LendIntentModel from "../models/lend-intent.model";
+import BorrowIntentModel from "../models/borrow-intent.model";
+import MatchProposalModel from "../models/match-proposal.model";
+import LoanModel from "../models/loan.model";
+import PendingTransferModel from "../models/pending-transfer.model";
 import { getEthPrice } from "../price";
 import { config } from "../config";
 import type { Context, Next } from "hono";
@@ -75,7 +81,7 @@ ghostRoute.get("/collateral-quote", async (c: Context) => {
   if (!isUsdCollateral && !isEthCollateral)
     return c.json({ error: "collateralToken must be gUSD or gETH" }, 400);
 
-  const score = state.getCreditScore(account);
+  const score = await getCreditScore(account);
   const multiplier = getCollateralMultiplier(score.tier);
   const borrowAmt = BigInt(amount);
   const requiredValueUsd = (Number(borrowAmt) / 1e18) * multiplier;
@@ -94,35 +100,36 @@ ghostRoute.get("/collateral-quote", async (c: Context) => {
   });
 });
 
-ghostRoute.get("/lender-status/:address", (c: Context) => {
+ghostRoute.get("/lender-status/:address", async (c: Context) => {
   const addr = c.req.param("address").toLowerCase();
 
-  // Build intentId → slotId lookup
+  // Build intentId -> slotId lookup
+  const slotsWithIntent = await DepositSlotModel.find({ intentId: { $exists: true, $ne: null } }).lean();
   const intentToSlot = new Map<string, string>();
-  for (const [slotId, slot] of state.depositSlots) {
-    if (slot.intentId) intentToSlot.set(slot.intentId, slotId);
+  for (const slot of slotsWithIntent) {
+    intentToSlot.set(slot.intentId as string, slot.slotId as string);
   }
 
   // Active lend intents
-  const activeLends = [...state.activeBuffer.values()]
-    .filter((i) => i.userId === addr)
-    .map((i) => ({
-      intentId: i.intentId,
-      slotId: intentToSlot.get(i.intentId) ?? "",
-      token: i.token,
-      amount: i.amount.toString(),
-      createdAt: i.createdAt,
-    }));
+  const lendDocs = await LendIntentModel.find({ userId: addr }).lean();
+  const activeLends = lendDocs.map((i) => ({
+    intentId: i.intentId as string,
+    slotId: intentToSlot.get(i.intentId as string) ?? "",
+    token: i.token as string,
+    amount: i.amount as string,
+    createdAt: i.createdAt as number,
+  }));
 
-  // Loans where this address is a lender (can appear in multiple ticks)
+  // Loans where this address is a lender
+  const loanDocs = await LoanModel.find({ "matchedTicks.lender": addr }).lean();
   const activeLoans: any[] = [];
   const completedLoans: any[] = [];
-  for (const loan of state.loans.values()) {
-    const ticks = loan.matchedTicks.filter((t) => t.lender === addr);
+  for (const loan of loanDocs) {
+    const ticks = (loan.matchedTicks as any[]).filter((t) => t.lender === addr);
     if (ticks.length === 0) continue;
-    const lenderPrincipal = ticks.reduce((s, t) => s + t.amount, 0n);
+    const lenderPrincipal = ticks.reduce((s, t) => s + BigInt(t.amount), 0n);
     const weightedRate =
-      ticks.reduce((s, t) => s + t.rate * Number(t.amount), 0) /
+      ticks.reduce((s, t) => s + t.rate * Number(BigInt(t.amount)), 0) /
       Number(lenderPrincipal);
     const expectedPayout =
       lenderPrincipal + BigInt(Math.floor(Number(lenderPrincipal) * weightedRate));
@@ -134,7 +141,7 @@ ghostRoute.get("/lender-status/:address", (c: Context) => {
         rate: weightedRate,
         expectedPayout: expectedPayout.toString(),
         maturity: loan.maturity,
-        maturityDate: new Date(loan.maturity).toISOString(),
+        maturityDate: new Date(loan.maturity as number).toISOString(),
         borrower: loan.borrower,
       });
     } else {
@@ -148,11 +155,11 @@ ghostRoute.get("/lender-status/:address", (c: Context) => {
   }
 
   // Transfers to this lender
+  const transferDocs = await PendingTransferModel.find({ recipient: addr }).lean();
   const pendingPayouts: any[] = [];
   const completedPayouts: any[] = [];
-  for (const t of state.pendingTransfers.values()) {
-    if (t.recipient !== addr) continue;
-    const entry = { id: t.id, amount: t.amount, token: t.token, reason: t.reason };
+  for (const t of transferDocs) {
+    const entry = { id: t.transferId, amount: t.amount, token: t.token, reason: t.reason };
     if (t.status === "pending") pendingPayouts.push(entry);
     else if (t.status === "completed") completedPayouts.push(entry);
   }
@@ -160,76 +167,83 @@ ghostRoute.get("/lender-status/:address", (c: Context) => {
   return c.json({ address: addr, activeLends, activeLoans, completedLoans, pendingPayouts, completedPayouts });
 });
 
-ghostRoute.get("/borrower-status/:address", (c: Context) => {
+ghostRoute.get("/borrower-status/:address", async (c: Context) => {
   const addr = c.req.param("address").toLowerCase();
 
   // Pending borrow intents (not yet matched)
-  const pendingIntents = [...state.borrowIntents.values()]
-    .filter((i) => i.borrower === addr && (i.status === "pending" || i.status === "proposed"))
-    .map((i) => ({
-      intentId: i.intentId,
-      token: i.token,
-      amount: i.amount.toString(),
-      collateralToken: i.collateralToken,
-      collateralAmount: i.collateralAmount.toString(),
-      status: i.status,
-      createdAt: i.createdAt,
-    }));
+  const intentDocs = await BorrowIntentModel.find({
+    borrower: addr,
+    status: { $in: ["pending", "proposed"] },
+  }).lean();
+  const pendingIntents = intentDocs.map((i) => ({
+    intentId: i.intentId as string,
+    token: i.token as string,
+    amount: i.amount as string,
+    collateralToken: i.collateralToken as string,
+    collateralAmount: i.collateralAmount as string,
+    status: i.status as string,
+    createdAt: i.createdAt as number,
+  }));
 
   // Pending proposals awaiting acceptance
-  const pendingProposals = [...state.matchProposals.values()]
-    .filter((p) => p.borrower === addr && p.status === "pending")
-    .map((p) => ({
-      proposalId: p.proposalId,
-      token: p.token,
-      principal: p.principal.toString(),
-      effectiveRate: p.effectiveBorrowerRate,
-      collateralToken: p.collateralToken,
-      collateralAmount: p.collateralAmount.toString(),
-      expiresAt: p.expiresAt,
-    }));
+  const proposalDocs = await MatchProposalModel.find({
+    borrower: addr,
+    status: "pending",
+  }).lean();
+  const pendingProposals = proposalDocs.map((p) => ({
+    proposalId: p.proposalId as string,
+    token: p.token as string,
+    principal: p.principal as string,
+    effectiveRate: p.effectiveBorrowerRate as number,
+    collateralToken: p.collateralToken as string,
+    collateralAmount: p.collateralAmount as string,
+    expiresAt: p.expiresAt as number,
+  }));
 
   // Loans
+  const loanDocs = await LoanModel.find({ borrower: addr }).lean();
   const activeLoans: any[] = [];
   const completedLoans: any[] = [];
-  for (const loan of state.loans.values()) {
-    if (loan.borrower !== addr) continue;
-    const totalDue = loan.principal + BigInt(Math.floor(Number(loan.principal) * loan.effectiveBorrowerRate));
+  for (const loan of loanDocs) {
+    const principal = BigInt(loan.principal as string);
+    const totalDue = principal + BigInt(Math.floor(Number(principal) * (loan.effectiveBorrowerRate as number)));
 
     if (loan.status === "active") {
+      const collateralAmount = BigInt(loan.collateralAmount as string);
+      const requiredCollateral = BigInt(loan.requiredCollateral as string);
       activeLoans.push({
         loanId: loan.loanId,
         token: loan.token,
-        principal: loan.principal.toString(),
+        principal: loan.principal,
         effectiveRate: loan.effectiveBorrowerRate,
         totalDue: totalDue.toString(),
-        repaidAmount: loan.repaidAmount.toString(),
+        repaidAmount: loan.repaidAmount,
         collateralToken: loan.collateralToken,
-        collateralAmount: loan.collateralAmount.toString(),
-        requiredCollateral: loan.requiredCollateral.toString(),
-        excessCollateral: (loan.collateralAmount - loan.requiredCollateral).toString(),
+        collateralAmount: loan.collateralAmount,
+        requiredCollateral: loan.requiredCollateral,
+        excessCollateral: (collateralAmount - requiredCollateral).toString(),
         maturity: loan.maturity,
-        maturityDate: new Date(loan.maturity).toISOString(),
+        maturityDate: new Date(loan.maturity as number).toISOString(),
       });
     } else {
       completedLoans.push({
         loanId: loan.loanId,
         token: loan.token,
-        principal: loan.principal.toString(),
+        principal: loan.principal,
         effectiveRate: loan.effectiveBorrowerRate,
         collateralToken: loan.collateralToken,
-        collateralAmount: loan.collateralAmount.toString(),
+        collateralAmount: loan.collateralAmount,
         status: loan.status,
       });
     }
   }
 
   // Transfers back to borrower (collateral returns, etc.)
+  const transferDocs = await PendingTransferModel.find({ recipient: addr }).lean();
   const pendingTransfers: any[] = [];
   const completedTransfers: any[] = [];
-  for (const t of state.pendingTransfers.values()) {
-    if (t.recipient !== addr) continue;
-    const entry = { id: t.id, amount: t.amount, token: t.token, reason: t.reason };
+  for (const t of transferDocs) {
+    const entry = { id: t.transferId, amount: t.amount, token: t.token, reason: t.reason };
     if (t.status === "pending") pendingTransfers.push(entry);
     else if (t.status === "completed") completedTransfers.push(entry);
   }
@@ -239,7 +253,7 @@ ghostRoute.get("/borrower-status/:address", (c: Context) => {
 
 ghostRoute.get("/credit-score/:address", async (c: Context) => {
   const address = c.req.param("address");
-  const score = state.getCreditScore(address);
+  const score = await getCreditScore(address);
   const ethPrice = await getEthPrice();
   return c.json({
     tier: score.tier,

@@ -1,6 +1,8 @@
-import { Context } from "hono";
+import type { Context } from "hono";
 import { authenticate } from "../auth";
-import { state } from "../state";
+import LoanModel from "../models/loan.model";
+import CreditScoreModel from "../models/credit-score.model";
+import { creditBalance, queueTransfer, getCreditScore, upgradeTier } from "../state";
 
 export const repayLoan = async (c: Context) => {
   try {
@@ -16,21 +18,19 @@ export const repayLoan = async (c: Context) => {
       account
     );
 
-    const loan = state.loans.get(loanId);
+    const loan = await LoanModel.findOne({ loanId });
     if (!loan) return c.json({ error: "Loan not found" }, 404);
     if (loan.borrower !== account.toLowerCase())
       return c.json({ error: "Not loan owner" }, 403);
     if (loan.status !== "active")
       return c.json({ error: "Loan not active" }, 409);
 
-    // Calculate total owed: sum of each tick's (amount * (1 + rate))
-    let totalOwed = BigInt(0);
+    // Calculate total owed
+    let totalOwed = 0n;
     for (const tick of loan.matchedTicks) {
-      // rate is annual decimal (e.g. 0.05 = 5%). Apply to tick amount.
-      const interest = BigInt(
-        Math.floor(Number(tick.amount) * tick.rate)
-      );
-      totalOwed += tick.amount + interest;
+      const tickAmount = BigInt(tick.amount as string);
+      const interest = BigInt(Math.floor(Number(tickAmount) * (tick.rate as number)));
+      totalOwed += tickAmount + interest;
     }
 
     const repayAmount = BigInt(amount);
@@ -47,35 +47,38 @@ export const repayLoan = async (c: Context) => {
     // Queue repayment transfers: principal + interest to each lender
     const lenderTransferIds: string[] = [];
     for (const tick of loan.matchedTicks) {
-      const interest = BigInt(
-        Math.floor(Number(tick.amount) * tick.rate)
-      );
-      const payout = tick.amount + interest;
-      state.creditBalance(tick.lender, loan.token, payout);
-      const tid = state.queueTransfer(
-        tick.lender,
-        loan.token,
+      const tickAmount = BigInt(tick.amount as string);
+      const interest = BigInt(Math.floor(Number(tickAmount) * (tick.rate as number)));
+      const payout = tickAmount + interest;
+      await creditBalance(tick.lender as string, loan.token as string, payout);
+      const tid = await queueTransfer(
+        tick.lender as string,
+        loan.token as string,
         payout.toString(),
         "repay-lender"
       );
       lenderTransferIds.push(tid);
     }
 
-    // Queue collateral return for CRE to execute
-    const transferId = state.queueTransfer(
-      loan.borrower,
-      loan.collateralToken,
-      loan.collateralAmount.toString(),
+    // Queue collateral return
+    const transferId = await queueTransfer(
+      loan.borrower as string,
+      loan.collateralToken as string,
+      loan.collateralAmount as string,
       "return-collateral-repay"
     );
 
     loan.status = "repaid";
-    loan.repaidAmount = repayAmount;
+    loan.repaidAmount = repayAmount.toString();
+    await loan.save();
 
     // Upgrade borrower credit tier on successful repay
-    const score = state.getCreditScore(loan.borrower);
-    score.loansRepaid++;
-    state.upgradeTier(loan.borrower);
+    const score = await getCreditScore(loan.borrower as string);
+    await CreditScoreModel.updateOne(
+      { address: (loan.borrower as string).toLowerCase() },
+      { $inc: { loansRepaid: 1 } }
+    );
+    await upgradeTier(loan.borrower as string);
 
     return c.json({
       status: "repaid",

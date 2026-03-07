@@ -94,6 +94,15 @@ export const CANCEL_BORROW_TYPES = {
   ],
 };
 
+export const REPAY_LOAN_TYPES = {
+  "Repay Loan": [
+    { name: "account", type: "address" },
+    { name: "loanId", type: "string" },
+    { name: "amount", type: "uint256" },
+    { name: "timestamp", type: "uint256" },
+  ],
+};
+
 export const CLAIM_EXCESS_COLLATERAL_TYPES = {
   "Claim Excess Collateral": [
     { name: "account", type: "address" },

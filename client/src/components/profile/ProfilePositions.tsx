@@ -1,15 +1,20 @@
 "use client";
 
+import { useState } from "react";
+import { useWallets } from "@privy-io/react-auth";
+import { ethers } from "ethers";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { formatTokenAmount } from "@/lib/pool-utils";
-import { COINS } from "@/lib/constants";
+import { COINS, GHOST_DOMAIN, REPAY_LOAN_TYPES } from "@/lib/constants";
+import { post, ts } from "@/lib/ghost";
 
 interface ProfilePositionsProps {
   lendSlots: any[];
   borrowIntents: any[];
   activeLoans: any[];
+  onRefresh?: () => void;
 }
 
 function tokenSymbol(address: string): string {
@@ -17,8 +22,39 @@ function tokenSymbol(address: string): string {
   return coin?.symbol ?? "???";
 }
 
-const ProfilePositions = ({ lendSlots, borrowIntents, activeLoans }: ProfilePositionsProps) => {
+function displayRate(loan: any): string {
+  // borrower loans have effectiveRate, lender loans have rate
+  const r = loan.effectiveRate ?? loan.rate;
+  if (r == null) return "N/A";
+  return `${(Number(r) * 100).toFixed(2)}%`;
+}
+
+const ProfilePositions = ({ lendSlots, borrowIntents, activeLoans, onRefresh }: ProfilePositionsProps) => {
+  const { wallets } = useWallets();
+  const [repaying, setRepaying] = useState<string | null>(null);
+
   const hasAny = lendSlots.length > 0 || borrowIntents.length > 0 || activeLoans.length > 0;
+
+  const handleRepay = async (loan: any) => {
+    const wallet = wallets[0];
+    if (!wallet) return;
+    try {
+      setRepaying(loan.loanId);
+      const provider = new ethers.BrowserProvider(await wallet.getEthereumProvider());
+      const signer = await provider.getSigner();
+      const account = await signer.getAddress();
+      const timestamp = ts();
+      const amount = loan.totalDue;
+      const message = { account, loanId: loan.loanId, amount, timestamp };
+      const auth = await signer.signTypedData(GHOST_DOMAIN, REPAY_LOAN_TYPES, message);
+      await post("/api/v1/repay", { account, loanId: loan.loanId, amount, timestamp, auth });
+      onRefresh?.();
+    } catch (err: any) {
+      console.error("Repay failed:", err);
+    } finally {
+      setRepaying(null);
+    }
+  };
 
   return (
     <Card>
@@ -94,24 +130,44 @@ const ProfilePositions = ({ lendSlots, borrowIntents, activeLoans }: ProfilePosi
                   <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
                     Active Loans ({activeLoans.length})
                   </p>
-                  {activeLoans.map((loan: any, i: number) => (
-                    <div
-                      key={loan.loanId ?? i}
-                      className="flex items-center justify-between rounded-lg border border-border p-3"
-                    >
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium">
-                          {formatTokenAmount(loan.amount ?? "0")} {tokenSymbol(loan.token)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Rate: {loan.rate ? `${(Number(loan.rate) / 100).toFixed(2)}%` : "N/A"}
-                        </p>
+                  {activeLoans.map((loan: any, i: number) => {
+                    const isBorrower = !!loan.totalDue;
+                    return (
+                      <div
+                        key={loan.loanId ?? i}
+                        className="flex items-center justify-between rounded-lg border border-border p-3"
+                      >
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium">
+                            {formatTokenAmount(loan.principal ?? "0")} {tokenSymbol(loan.token)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Rate: {displayRate(loan)}
+                          </p>
+                          {isBorrower && (
+                            <p className="text-xs text-muted-foreground">
+                              Due: {formatTokenAmount(loan.totalDue)} {tokenSymbol(loan.token)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isBorrower && (
+                            <button
+                              onClick={() => handleRepay(loan)}
+                              disabled={repaying === loan.loanId}
+                              className="px-3 py-1 rounded-full text-xs font-semibold text-gray-900 transition-colors cursor-pointer disabled:opacity-50"
+                              style={{ backgroundColor: "#e2a9f1" }}
+                            >
+                              {repaying === loan.loanId ? "Repaying..." : "Repay"}
+                            </button>
+                          )}
+                          <Badge variant="outline" className="text-[#e2a9f1] border-[#e2a9f1]/30">
+                            {loan.status ?? "active"}
+                          </Badge>
+                        </div>
                       </div>
-                      <Badge variant="outline" className="text-[#e2a9f1] border-[#e2a9f1]/30">
-                        {loan.status ?? "active"}
-                      </Badge>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

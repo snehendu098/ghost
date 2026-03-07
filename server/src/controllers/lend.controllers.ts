@@ -1,7 +1,14 @@
-import { Context } from "hono";
+import type { Context } from "hono";
 import { authenticate } from "../auth";
-import { state } from "../state";
-import type { DepositSlot, LendIntent } from "../types";
+import {
+  currentEpoch,
+  creditBalance,
+  debitBalance,
+  queueTransfer,
+  expireOldSlots,
+} from "../state";
+import DepositSlotModel from "../models/deposit-slot.model";
+import LendIntentModel from "../models/lend-intent.model";
 
 export const initDepositLend = async (c: Context) => {
   try {
@@ -10,23 +17,21 @@ export const initDepositLend = async (c: Context) => {
     if (!account || !token || !amount)
       return c.json({ error: "Missing required fields" }, 400);
 
-    state.expireOldSlots();
+    await expireOldSlots();
 
     const slotId = crypto.randomUUID();
 
-    const slot: DepositSlot = {
+    await DepositSlotModel.create({
       slotId,
       userId: account.toLowerCase(),
       token: token.toLowerCase(),
-      amount: BigInt(amount),
+      amount: BigInt(amount).toString(),
       status: "pending",
       createdAt: Date.now(),
-      epochId: state.currentEpoch,
-    };
+      epochId: currentEpoch,
+    });
 
-    state.depositSlots.set(slotId, slot);
-
-    return c.json({ slotId, epochId: state.currentEpoch });
+    return c.json({ slotId, epochId: currentEpoch });
   } catch (err: any) {
     return c.json({ error: err.message }, 401);
   }
@@ -47,7 +52,7 @@ export const confirmDepositLend = async (c: Context) => {
       account
     );
 
-    const slot = state.depositSlots.get(slotId);
+    const slot = await DepositSlotModel.findOne({ slotId });
     if (!slot) return c.json({ error: "Slot not found" }, 404);
     if (slot.status === "cancelled")
       return c.json({ error: "Slot expired" }, 410);
@@ -59,32 +64,34 @@ export const confirmDepositLend = async (c: Context) => {
     // Check TTL
     if (Date.now() - slot.createdAt > 10 * 60 * 1000) {
       slot.status = "cancelled";
+      await slot.save();
       return c.json({ error: "Slot expired" }, 410);
     }
 
     slot.encryptedRate = encryptedRate;
     slot.status = "confirmed";
 
-    state.creditBalance(account, slot.token, slot.amount);
+    await creditBalance(account, slot.token, BigInt(slot.amount));
 
     const intentId = crypto.randomUUID();
-    const intent: LendIntent = {
+
+    await LendIntentModel.create({
       intentId,
       userId: account.toLowerCase(),
       token: slot.token,
-      amount: slot.amount,
+      amount: BigInt(slot.amount).toString(),
       encryptedRate,
-      epochId: state.currentEpoch,
+      epochId: currentEpoch,
       createdAt: Date.now(),
-    };
+    });
 
-    state.activeBuffer.set(intentId, intent);
     slot.intentId = intentId;
+    await slot.save();
 
     return c.json({
       status: "sealed_bid_accepted",
       intentId,
-      epochId: state.currentEpoch,
+      epochId: currentEpoch,
     });
   } catch (err: any) {
     return c.json({ error: err.message }, 401);
@@ -105,25 +112,30 @@ export const cancelLend = async (c: Context) => {
       account
     );
 
-    const slot = state.depositSlots.get(slotId);
+    const slot = await DepositSlotModel.findOne({ slotId });
     if (!slot) return c.json({ error: "Slot not found" }, 404);
     if (slot.userId !== account.toLowerCase())
       return c.json({ error: "Not slot owner" }, 403);
 
-    if (!slot.intentId || !state.activeBuffer.has(slot.intentId))
+    const activeIntent = slot.intentId
+      ? await LendIntentModel.findOne({ intentId: slot.intentId })
+      : null;
+
+    if (!slot.intentId || !activeIntent)
       return c.json({ error: "No active intent for this slot" }, 409);
 
     // Queue transfer for CRE to execute
-    const transferId = state.queueTransfer(
+    const transferId = await queueTransfer(
       account,
       slot.token,
-      slot.amount.toString(),
+      BigInt(slot.amount).toString(),
       "cancel-lend"
     );
 
-    state.activeBuffer.delete(slot.intentId);
-    state.debitBalance(account, slot.token, slot.amount);
+    await LendIntentModel.deleteOne({ intentId: slot.intentId });
+    await debitBalance(account, slot.token, BigInt(slot.amount));
     slot.status = "cancelled";
+    await slot.save();
 
     return c.json({ status: "cancelled", transferId });
   } catch (err: any) {

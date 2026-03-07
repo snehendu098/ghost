@@ -118,6 +118,7 @@ const ProfilePage = () => {
         lendSlots={lendSlots}
         borrowIntents={borrowIntents}
         activeLoans={activeLoans}
+        onRefresh={load}
       />
     </div>
   );
