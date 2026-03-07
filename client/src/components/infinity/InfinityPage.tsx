@@ -5,7 +5,6 @@ import UpgradedSection from "./UpgradedSection";
 import ProvenSection from "./ProvenSection";
 import YieldSourcesSection from "./YieldSourcesSection";
 import IntegrationsSection from "./IntegrationsSection";
-import SecuritySection from "./SecuritySection";
 import LearnMoreSection from "./LearnMoreSection";
 import FAQSection from "./FAQSection";
 
@@ -17,7 +16,7 @@ const InfinityPage = () => {
       <ProvenSection />
       <YieldSourcesSection />
       <IntegrationsSection />
-      <SecuritySection />
+      
       <LearnMoreSection />
       <FAQSection />
     </div>

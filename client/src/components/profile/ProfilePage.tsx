@@ -3,14 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Copy, Check, ExternalLink, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { NumberTicker } from "@/components/ui/number-ticker";
-import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { get } from "@/lib/ghost";
-import { gUSD, gETH } from "@/lib/constants";
 
 interface CreditInfo {
   tier: string;
@@ -18,28 +11,6 @@ interface CreditInfo {
   loansDefaulted: number;
   collateralMultiplier: number;
 }
-
-interface ActiveLoan {
-  loanId: string;
-  token: string;
-  principal: string;
-  effectiveRate?: number;
-  rate?: number;
-}
-
-const tokenSymbol = (addr: string) => {
-  const l = addr.toLowerCase();
-  if (l === gUSD.toLowerCase()) return "gUSD";
-  if (l === gETH.toLowerCase()) return "gETH";
-  return addr.slice(0, 6);
-};
-
-const tierStyle: Record<string, string> = {
-  bronze: "bg-amber-500/15 text-amber-400",
-  silver: "bg-zinc-400/15 text-zinc-300",
-  gold: "bg-yellow-500/15 text-yellow-400",
-  platinum: "bg-cyan-400/15 text-cyan-300",
-};
 
 const ProfilePage = () => {
   const { authenticated, login } = usePrivy();
@@ -84,17 +55,18 @@ const ProfilePage = () => {
 
   if (!authenticated) {
     return (
-      <div className="w-full max-w-xl mx-auto py-24 px-4 text-center space-y-6">
-        <p className="text-muted-foreground text-sm">
-          Connect your wallet to view your profile.
+      <div className="w-full max-w-lg mx-auto py-32 px-4 text-center space-y-4">
+        <h2 className="text-lg font-medium text-foreground">Connect to view your profile</h2>
+        <p className="text-sm text-muted-foreground">
+          Your credit tier, positions, and protocol stats live here.
         </p>
-        <ShimmerButton
+        <button
           onClick={login}
-          background="rgba(99,102,241,1)"
-          className="mx-auto text-sm font-medium"
+          className="text-gray-900 px-8 py-2.5 rounded-full text-sm font-semibold transition-colors cursor-pointer"
+          style={{ backgroundColor: "#e2a9f1" }}
         >
           Connect Wallet
-        </ShimmerButton>
+        </button>
       </div>
     );
   }
@@ -111,111 +83,67 @@ const ProfilePage = () => {
   const multiplier = credit?.collateralMultiplier ?? 2;
 
   return (
-    <div className="w-full max-w-xl mx-auto py-10 px-4 space-y-6">
-      {/* Wallet */}
-      <Card>
-        <CardContent className="flex items-center gap-4">
-          <Avatar size="lg">
-            <AvatarFallback>{addr?.slice(2, 4).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="font-mono text-sm text-foreground truncate">{addr}</p>
-            <div className="flex items-center gap-3 mt-1">
-              <button
-                onClick={copy}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
-              <a
-                href={`https://sepolia.etherscan.io/address/${addr}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ExternalLink className="w-3 h-3" />
-                Etherscan
-              </a>
-            </div>
-          </div>
-          <Badge
-            variant="outline"
-            className={`capitalize ${tierStyle[tier] ?? tierStyle.bronze} border-0`}
+    <div className="w-full max-w-lg mx-auto py-10 px-4 space-y-6">
+      {/* Address */}
+      <div>
+        <p className="font-mono text-sm text-foreground truncate">{addr}</p>
+        <div className="flex items-center gap-3 mt-1">
+          <button
+            onClick={copy}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
-            {tier}
-          </Badge>
-        </CardContent>
-      </Card>
+            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <a
+            href={`https://sepolia.etherscan.io/address/${addr}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Etherscan
+          </a>
+          <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
+            Sepolia
+          </span>
+        </div>
+      </div>
+
+      {/* Tier + Collateral */}
+      <div className="rounded-xl border border-border p-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground">Credit Tier</p>
+          <p className="text-lg font-semibold capitalize text-foreground">{tier}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Collateral Ratio</p>
+          <p className="text-lg font-semibold text-foreground">{multiplier}x</p>
+        </div>
+      </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-px rounded-xl overflow-hidden border border-border">
         {[
-          { label: "Repaid", value: credit?.loansRepaid ?? 0 },
+          { label: "Repaid",    value: credit?.loansRepaid ?? 0 },
           { label: "Defaulted", value: credit?.loansDefaulted ?? 0 },
           { label: "Borrowing", value: borrowCount },
-          { label: "Lending", value: lendCount },
+          { label: "Lending",   value: lendCount },
         ].map((s) => (
-          <Card key={s.label} className="py-4">
-            <CardContent className="text-center px-2">
-              <div className="text-xl font-semibold text-foreground">
-                <NumberTicker value={s.value} />
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-1">{s.label}</p>
-            </CardContent>
-          </Card>
+          <div key={s.label} className="bg-card px-3 py-3.5 text-center">
+            <p className="text-lg font-semibold tabular-nums text-foreground">{s.value}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">{s.label}</p>
+          </div>
         ))}
       </div>
 
-      {/* Collateral & Intents */}
-      <Card>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Collateral Ratio</span>
-            <span className="text-sm font-medium text-foreground">{multiplier}x</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Pending Intents</span>
-            <span className="text-sm font-medium text-foreground">{intentCount}</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Network</span>
-            <Badge variant="secondary" className="text-xs">Sepolia</Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tier progression */}
-      <Card>
-        <CardHeader className="pb-0">
-          <CardTitle className="text-sm">Tier Progression</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">
-            Repay loans on time to lower your collateral requirements.
-          </p>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              { name: "Bronze", mult: "2x", style: "bronze" },
-              { name: "Silver", mult: "1.5x", style: "silver" },
-              { name: "Gold", mult: "1.25x", style: "gold" },
-              { name: "Platinum", mult: "1.1x", style: "platinum" },
-            ].map((t, i) => (
-              <span key={t.name} className="flex items-center gap-1.5">
-                {i > 0 && <span className="text-muted-foreground text-xs">&rarr;</span>}
-                <Badge
-                  variant="outline"
-                  className={`text-[11px] border-0 ${tierStyle[t.style]}`}
-                >
-                  {t.name} {t.mult}
-                </Badge>
-              </span>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Pending intents */}
+      {intentCount > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-border px-4 py-3">
+          <span className="text-sm text-muted-foreground">Pending intents</span>
+          <span className="text-sm font-medium text-foreground tabular-nums">{intentCount}</span>
+        </div>
+      )}
     </div>
   );
 };

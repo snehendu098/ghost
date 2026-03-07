@@ -1,212 +1,200 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useWallets, usePrivy } from "@privy-io/react-auth";
-import { Loader2, Shield, TrendingUp, TrendingDown, DollarSign, AlertCircle } from "lucide-react";
-import { get } from "@/lib/ghost";
+import { useState } from "react";
+import { ArrowDownUp, Loader2 } from "lucide-react";
+import { ethers } from "ethers";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { ts } from "@/lib/ghost";
+import {
+  CHAIN_ID,
+  gUSD,
+  gETH,
+  EXTERNAL_DOMAIN,
+  PRIVATE_TRANSFER_TYPES,
+  EXTERNAL_API,
+} from "@/lib/constants";
 
-interface CreditInfo {
-  tier: string;
-  loansRepaid: number;
-  loansDefaulted: number;
-  collateralMultiplier: number;
-  ethPrice: number;
-}
+const tokens = [
+  { symbol: "gUSD", name: "Ghost USD", address: gUSD, icon: "/gusd.png" },
+  { symbol: "gETH", name: "Ghost ETH", address: gETH, icon: "/geth.png" },
+];
 
-const tierColors: Record<string, string> = {
-  bronze: "from-amber-700 to-amber-500",
-  silver: "from-gray-400 to-gray-300",
-  gold: "from-yellow-500 to-yellow-300",
-  platinum: "from-cyan-400 to-cyan-200",
-};
-
-const tierBorderColors: Record<string, string> = {
-  bronze: "border-amber-600/30",
-  silver: "border-gray-400/30",
-  gold: "border-yellow-500/30",
-  platinum: "border-cyan-400/30",
-};
-
-const InfoTab = () => {
+const SwapTab = () => {
   const { authenticated, login } = usePrivy();
   const { wallets } = useWallets();
-  const walletAddress = wallets[0]?.address;
 
-  const [info, setInfo] = useState<CreditInfo | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [fromIdx, setFromIdx] = useState(0);
+  const [amount, setAmount] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const loadInfo = useCallback(async () => {
-    if (!walletAddress) return;
-    setLoading(true);
+  const from = tokens[fromIdx];
+  const to = tokens[fromIdx === 0 ? 1 : 0];
+
+  const flip = () => {
+    setFromIdx(fromIdx === 0 ? 1 : 0);
+    setAmount("");
     setError("");
+    setSuccess("");
+  };
+
+  const handleSwap = async () => {
+    const wallet = wallets[0];
+    if (!wallet || !amount) return;
+
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
     try {
-      const data = await get(`/api/v1/credit-score/${walletAddress}`);
-      setInfo(data);
-    } catch {
-      setError("Failed to load account info.");
+      await wallet.switchChain(CHAIN_ID);
+      const ethereumProvider = await wallet.getEthereumProvider();
+      const provider = new ethers.BrowserProvider(ethereumProvider);
+      const signer = await provider.getSigner();
+      const account = await signer.getAddress();
+      const timestamp = ts();
+      const weiAmount = ethers.parseEther(amount).toString();
+
+      const message = {
+        sender: account,
+        recipient: account,
+        token: from.address,
+        amount: weiAmount,
+        flags: ["swap", to.address],
+        timestamp,
+      };
+      const auth = await signer.signTypedData(
+        EXTERNAL_DOMAIN,
+        PRIVATE_TRANSFER_TYPES,
+        message
+      );
+
+      const res = await fetch(`${EXTERNAL_API}/private-transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account,
+          recipient: account,
+          token: from.address,
+          amount: weiAmount,
+          flags: ["swap", to.address],
+          timestamp,
+          auth,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Swap failed");
+
+      setSuccess(`Swapped ${amount} ${from.symbol} → ${to.symbol}`);
+      setAmount("");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Swap failed");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  }, [walletAddress]);
+  };
 
-  useEffect(() => {
-    loadInfo();
-  }, [loadInfo]);
+  const handleInput = (v: string) => {
+    if (v === "" || /^\d*\.?\d*$/.test(v)) setAmount(v);
+  };
 
-  if (!authenticated) {
-    return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-medium text-foreground">Account Info</h1>
-          <p className="text-sm text-muted-foreground">
-            Connect your wallet to view your credit score and account details.
-          </p>
+  return (
+    <div className="space-y-5 py-4">
+      <div>
+        <h1 className="text-xl font-medium text-foreground">Swap</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Private token swap via sealed transfer.
+        </p>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        {/* From */}
+        <div className="px-5 pt-5 pb-4">
+          <p className="text-xs text-muted-foreground mb-3">You pay</p>
+          <div className="flex items-center gap-4">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => handleInput(e.target.value)}
+              placeholder="0.00"
+              className="bg-transparent text-[28px] font-medium text-foreground outline-none flex-1 min-w-0 placeholder:text-muted-foreground/40"
+            />
+            <div className="flex items-center gap-2.5 bg-muted/60 rounded-full pl-2 pr-3.5 py-1.5 shrink-0">
+              <img src={from.icon} alt="" className="w-6 h-6 rounded-full object-cover" />
+              <span className="text-sm font-semibold text-foreground whitespace-nowrap">{from.symbol}</span>
+            </div>
+          </div>
         </div>
+
+        {/* Divider + Flip */}
+        <div className="relative h-0">
+          <div className="absolute inset-x-5 border-t border-border" />
+          <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <button
+              onClick={flip}
+              className="w-10 h-10 rounded-xl border border-border bg-card flex items-center justify-center hover:bg-accent active:scale-95 transition-all cursor-pointer shadow-sm"
+            >
+              <ArrowDownUp className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+
+        {/* To */}
+        <div className="px-5 pt-5 pb-5">
+          <p className="text-xs text-muted-foreground mb-3">You receive</p>
+          <div className="flex items-center gap-4">
+            <p className="text-[28px] font-medium text-muted-foreground/40 flex-1 min-w-0 truncate">
+              {amount || "0.00"}
+            </p>
+            <div className="flex items-center gap-2.5 bg-muted/60 rounded-full pl-2 pr-3.5 py-1.5 shrink-0">
+              <img src={to.icon} alt="" className="w-6 h-6 rounded-full object-cover" />
+              <span className="text-sm font-semibold text-foreground whitespace-nowrap">{to.symbol}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Details */}
+      <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+        <span>1 {from.symbol} = 1 {to.symbol}</span>
+        <span>Sepolia</span>
+      </div>
+
+      {/* Feedback */}
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      {success && <p className="text-sm text-emerald-400">{success}</p>}
+
+      {/* Action */}
+      {authenticated ? (
+        <button
+          onClick={handleSwap}
+          disabled={submitting || !amount || parseFloat(amount) <= 0}
+          className="w-full text-gray-900 font-semibold py-3.5 rounded-xl transition-colors cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: "#e2a9f1" }}
+        >
+          {submitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Swapping...
+            </span>
+          ) : amount && parseFloat(amount) > 0 ? (
+            `Swap ${from.symbol} → ${to.symbol}`
+          ) : (
+            "Enter an amount"
+          )}
+        </button>
+      ) : (
         <button
           onClick={login}
-          className="w-full text-gray-900 font-medium py-4 rounded-2xl transition-colors cursor-pointer text-lg"
+          className="w-full text-gray-900 font-semibold py-3.5 rounded-xl transition-colors cursor-pointer text-sm"
           style={{ backgroundColor: "#e2a9f1" }}
         >
           Connect Wallet
         </button>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-medium text-foreground">Account Info</h1>
-          <p className="text-sm text-muted-foreground">
-            Your credit score and protocol statistics.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl bg-red-500/10 text-red-400">
-          <AlertCircle className="w-4 h-4" />
-          <span>{error}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!info) {
-    return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-medium text-foreground">Account Info</h1>
-          <p className="text-sm text-muted-foreground">
-            Your credit score and protocol statistics.
-          </p>
-        </div>
-        <div className="bg-card border border-border rounded-2xl p-8 text-center text-muted-foreground text-sm">
-          No account info available.
-        </div>
-      </div>
-    );
-  }
-
-  const tierGradient = tierColors[info.tier] || tierColors.bronze;
-  const tierBorder = tierBorderColors[info.tier] || tierBorderColors.bronze;
-
-  return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-medium text-foreground">Account Info</h1>
-        <p className="text-sm text-muted-foreground">
-          Your credit score and protocol statistics.
-        </p>
-      </div>
-
-      {/* Credit Tier Card */}
-      <div className={`bg-card border ${tierBorder} rounded-2xl px-5 py-5`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${tierGradient} flex items-center justify-center`}>
-              <Shield className="w-6 h-6 text-gray-900" />
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Credit Tier</div>
-              <div className="text-xl font-semibold text-foreground capitalize">
-                {info.tier}
-              </div>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground">Collateral Ratio</div>
-            <div className="text-xl font-semibold text-foreground">
-              {info.collateralMultiplier}x
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Wallet */}
-      <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">Wallet</div>
-        <div className="font-mono text-xs text-foreground">
-          {walletAddress}
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="space-y-2">
-        <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-            </div>
-            <span className="text-sm text-foreground">Loans Repaid</span>
-          </div>
-          <span className="text-sm font-semibold text-foreground">{info.loansRepaid}</span>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-              <TrendingDown className="w-4 h-4 text-red-400" />
-            </div>
-            <span className="text-sm text-foreground">Loans Defaulted</span>
-          </div>
-          <span className="text-sm font-semibold text-foreground">{info.loansDefaulted}</span>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-              <DollarSign className="w-4 h-4 text-yellow-400" />
-            </div>
-            <span className="text-sm text-foreground">ETH Price</span>
-          </div>
-          <span className="text-sm font-semibold text-foreground">${info.ethPrice.toFixed(0)}</span>
-        </div>
-      </div>
-
-      {/* Tier Progression */}
-      <div className="bg-card border border-border rounded-xl px-4 py-3 text-xs text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground text-sm">Tier Progression</p>
-        <p>Repay loans on time to improve your credit tier and lower your collateral requirements.</p>
-        <div className="flex items-center gap-2 pt-1">
-          <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 font-medium">Bronze 2x</span>
-          <span className="text-muted-foreground">&rarr;</span>
-          <span className="px-2.5 py-1 rounded-full bg-gray-500/20 text-gray-300 font-medium">Silver 1.5x</span>
-          <span className="text-muted-foreground">&rarr;</span>
-          <span className="px-2.5 py-1 rounded-full bg-yellow-500/20 text-yellow-400 font-medium">Gold 1.25x</span>
-          <span className="text-muted-foreground">&rarr;</span>
-          <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-medium">Platinum 1.1x</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
 
-export default InfoTab;
+export default SwapTab;

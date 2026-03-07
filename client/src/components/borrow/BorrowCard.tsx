@@ -389,30 +389,7 @@ const BorrowCard = () => {
 
       {/* Info Summary */}
       <div className="bg-muted/30 border border-border rounded-xl px-4 py-3 space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Borrow</span>
-          <span className="text-foreground font-medium">
-            {borrowAmount || "0"} {borrowCoin.symbol}
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Collateral</span>
-          <span className="text-foreground font-medium">
-            {collateralAmount || "0"} {collateralCoin.symbol}
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Max Rate</span>
-          <span className="text-foreground font-medium">
-            {maxRate || "0"}%
-          </span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Duration</span>
-          <span className="text-foreground font-medium">
-            {duration || "0"} days
-          </span>
-        </div>
+        
         {quoteMeta && (
           <>
             <div className="flex justify-between text-sm">

@@ -4,7 +4,7 @@ import { useState } from "react";
 import TabSwitcher from "./TabSwitcher";
 import BorrowCard from "../borrow/BorrowCard";
 import LendCard from "../lend/LendCard";
-import InfoTab from "../info/InfoTab";
+import SwapTab from "../info/InfoTab";
 import StatusTab from "../status/StatusTab";
 
 const StakePage = () => {
@@ -42,8 +42,8 @@ const StakePage = () => {
           <LendCard />
         </div>
       )}
+      {activeTab === "Swap" && <SwapTab />}
       {activeTab === "Status" && <StatusTab />}
-      {activeTab === "Info" && <InfoTab />}
     </div>
   );
 };

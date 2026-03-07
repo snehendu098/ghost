@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Settings, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { Sun, Moon, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { useTheme } from "next-themes";
 import { usePrivy } from "@privy-io/react-auth";
 
 const navItems = [
@@ -24,6 +25,7 @@ const moreLinks = [
 const Navbar = () => {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
   const { login, logout, authenticated, user } = usePrivy();
 
   const walletAddress = user?.wallet?.address;
@@ -36,13 +38,13 @@ const Navbar = () => {
           {/* Logo */}
           <div className="flex items-center gap-2 mr-4">
             <Image
-              src="/ghost-logo.png"
+              src="/ghost-logo1.png"
               alt="Ghost"
-              width={28}
+              width={70}
               height={28}
-              className="rounded-full"
+              
             />
-            <span className="text-foreground font-semibold text-lg">GhostFi</span>
+            {/* <span className="text-foreground font-semibold text-lg">GhostFi</span> */}
           </div>
 
           {/* Nav Items */}
@@ -140,8 +142,11 @@ const Navbar = () => {
 
         {/* Right section: Settings + Connect */}
         <div className="flex items-center gap-3">
-          <button className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-            <Settings className="w-5 h-5" />
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          >
+            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
 
           {authenticated ? (
