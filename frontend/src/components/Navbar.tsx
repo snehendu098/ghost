@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import { ChevronDown, ArrowUpRight, Menu, X } from "lucide-react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { links } from "@/constants/links";
 
 // --- Data ---
 
@@ -262,7 +263,7 @@ export default function Navbar() {
               </button>
             ))}
             <a
-              href="https://tattered-elm-7ca.notion.site/Careers-at-Ghost-Finance-31c9eec45dff80b8989fdf81a7373b12"
+              href={links.careers}
               target="_blank"
               rel="noopener noreferrer"
               onMouseEnter={() => { if (closeTimer.current) clearTimeout(closeTimer.current); setActiveTab(null); }}
@@ -294,9 +295,9 @@ export default function Navbar() {
         </div>
 
         {/* CTA */}
-        <button className="hidden md:block px-5 py-2 text-gray-900 text-sm font-semibold rounded-full hover:opacity-90 transition-opacity" style={{ backgroundColor: "#e2a9f1" }}>
+        <a href={links.app} target="_blank" rel="noopener noreferrer" className="hidden md:block px-5 py-2 text-gray-900 text-sm font-semibold rounded-full hover:opacity-90 transition-opacity" style={{ backgroundColor: "#e2a9f1" }}>
           Launch App
-        </button>
+        </a>
 
         {/* Mobile toggle */}
         <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden p-2 text-gray-400">
@@ -318,8 +319,8 @@ export default function Navbar() {
               <a href="#" className="block text-sm font-medium py-2 text-gray-400">Products</a>
               <a href="#" className="block text-sm font-medium py-2 text-gray-400">Resources</a>
               <a href="#" className="block text-sm font-medium py-2 text-gray-400">Tokens</a>
-              <a href="https://tattered-elm-7ca.notion.site/Careers-at-Ghost-Finance-31c9eec45dff80b8989fdf81a7373b12" target="_blank" rel="noopener noreferrer" className="block text-sm font-medium py-2 text-gray-400">Careers</a>
-              <button className="w-full px-5 py-2.5 text-gray-900 text-sm font-semibold rounded-full" style={{ backgroundColor: "#e2a9f1" }}>Launch App</button>
+              <a href={links.careers} target="_blank" rel="noopener noreferrer" className="block text-sm font-medium py-2 text-gray-400">Careers</a>
+              <a href={links.app} target="_blank" rel="noopener noreferrer" className="block w-full px-5 py-2.5 text-gray-900 text-sm font-semibold rounded-full text-center" style={{ backgroundColor: "#e2a9f1" }}>Launch App</a>
             </div>
           </motion.div>
         )}
