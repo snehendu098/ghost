@@ -11,7 +11,7 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   metadataBase: new URL("https://ghost-finance.xyz"),
   title: {
-    default: "Ghost Finance — Private P2P Lending on Chainlink CRE",
+    default: "Ghost Finance: Private P2P Lending on Chainlink CRE",
     template: "%s | Ghost Finance",
   },
   description:

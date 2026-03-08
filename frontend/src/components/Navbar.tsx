@@ -17,16 +17,16 @@ const products = [
     ],
   },
   {
-    category: "Institutions & Projects",
+    category: "Tools",
     items: [
-      { name: "Private Pools", desc: "Institutional-grade private lending pools with custom parameters.", colors: ["#f0abfc", "#a855f7", "#e9d5ff"] },
+      { name: "Raycast Extension (Cooming Soon)", desc: "Use Ghost's confidential matching engine from Raycast.", colors: ["#67e8f9", "#0891b2", "#a5f3fc"] },
+      { name: "Telegram Bot", desc: "Access all of Ghost's features via Telegram.", colors: ["#86efac", "#16a34a", "#bbf7d0"] },
     ],
   },
   {
-    category: "Developers",
+    category: "Institutions & Projects",
     items: [
-      { name: "CRE Integration", desc: "Build on Ghost's confidential matching engine.", colors: ["#67e8f9", "#0891b2", "#a5f3fc"] },
-      { name: "Documentation", desc: "Protocol architecture, API reference, and guides.", colors: ["#86efac", "#16a34a", "#bbf7d0"] },
+      { name: "Private Pools", desc: "Institutional-grade private lending pools with custom parameters.", colors: ["#f0abfc", "#a855f7", "#e9d5ff"] },
     ],
   },
 ];
