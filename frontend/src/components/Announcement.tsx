@@ -1,5 +1,5 @@
 "use client";
-import { ArrowUpRight, Lock } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function Announcement() {
@@ -18,12 +18,6 @@ export default function Announcement() {
         >
           {/* Left content */}
           <div className="flex-1 min-w-0">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 bg-[#1e1e1e] border border-white/[0.06] rounded-full px-3.5 py-1.5 mb-6">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-xs font-medium text-gray-300">Litepaper</span>
-            </div>
-
             {/* Title */}
             <h3 className="text-xl sm:text-2xl font-semibold text-white flex items-center gap-2.5 mb-2">
               GHOST: Privacy-Preserving Rate Discovery
@@ -36,21 +30,14 @@ export default function Announcement() {
             </p>
           </div>
 
-          {/* Right visual — stacked document cards, centered */}
-          <div className="relative w-44 h-44 shrink-0 hidden sm:block">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-40 bg-[#1e1e1e] border border-white/[0.04] rounded-2xl -rotate-6 shadow-lg" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-40 bg-[#1e1e1e] border border-white/[0.04] rounded-2xl rotate-6 shadow-lg" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-40 bg-[#2a2a2d] border border-white/[0.08] rounded-2xl shadow-2xl">
-              <div className="flex flex-col items-center pt-5 px-4">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center mb-3">
-                  <Lock className="w-4 h-4 text-blue-400" />
-                </div>
-                <p className="text-base font-semibold text-white mb-4">GHOST</p>
-              </div>
-              <div className="px-5 space-y-2.5">
-                <div className="h-2 w-full rounded-full bg-white/[0.08]" />
-                <div className="h-2 w-full rounded-full bg-white/[0.08]" />
-              </div>
+          {/* Right visual — thumbnail with hover scale like Features */}
+          <div className="relative w-52 h-48 shrink-0 hidden sm:block overflow-visible">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-48 rounded-2xl border border-white/[0.08] overflow-hidden bg-[#1e1e1e]">
+              <img
+                src="/litepaper-thumb.png"
+                alt="GHOST Litepaper"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.08]"
+              />
             </div>
           </div>
         </a>
