@@ -1,9 +1,9 @@
 import Image from "next/image";
 
 const columns = [
-  { title: "Products", links: ["Ghost App", "Ghost Web", "Lending-as-a-Service", "Gateway", "Settlement SDK"] },
-  { title: "Resources", links: ["Blog", "Documentation", "Developer Alerts", "Ghost Quarterly", "Brand"] },
-  { title: "Community", links: ["$GHOST", "Vote", "Forum"] },
+  { title: "Protocol", links: ["Lend", "Borrow", "Private Pools", "Governance"] },
+  { title: "Resources", links: ["Litepaper", "Documentation", "Blog", "Architecture"] },
+  { title: "Community", links: ["X", "Discord", "$gUSD", "$gETH"] },
 ];
 
 export default function Footer() {

@@ -1,9 +1,10 @@
+"use client";
 import Image from "next/image";
+import { motion } from "framer-motion";
 
 const partners = [
   {
     name: "Chainlink",
-    color: "#375BD2",
     logo: (
       <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
         <path d="M16 0L6.4 5.6v12.8L16 24l9.6-5.6V5.6L16 0zm6.4 16.48L16 20.08l-6.4-3.6V8.88L16 5.28l6.4 3.6v7.6z" fill="#375BD2"/>
@@ -12,7 +13,6 @@ const partners = [
   },
   {
     name: "Ethereum",
-    color: "#627EEA",
     logo: (
       <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
         <path d="M16 2l-0.2 0.7v18.2l0.2 0.2 8.5-5L16 2z" fill="#627EEA" opacity="0.6"/>
@@ -24,7 +24,6 @@ const partners = [
   },
   {
     name: "Polygon",
-    color: "#8247E5",
     logo: (
       <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
         <path d="M22.1 12.2c-.5-.3-1.1-.3-1.5 0l-3.6 2.1-2.4 1.4-3.6 2.1c-.5.3-1.1.3-1.5 0l-2.8-1.7c-.5-.3-.8-.8-.8-1.4v-3.3c0-.6.3-1.1.8-1.4l2.8-1.6c.5-.3 1.1-.3 1.5 0l2.8 1.6c.5.3.8.8.8 1.4v2.1l2.4-1.4v-2.1c0-.6-.3-1.1-.8-1.4l-5.2-3c-.5-.3-1.1-.3-1.5 0l-5.3 3c-.5.3-.8.8-.8 1.4v6.1c0 .6.3 1.1.8 1.4l5.2 3c.5.3 1.1.3 1.5 0l3.6-2.1 2.4-1.4 3.6-2.1c.5-.3 1.1-.3 1.5 0l2.8 1.6c.5.3.8.8.8 1.4v3.3c0 .6-.3 1.1-.8 1.4l-2.8 1.7c-.5.3-1.1.3-1.5 0l-2.8-1.6c-.5-.3-.8-.8-.8-1.4v-2.1l-2.4 1.4v2.1c0 .6.3 1.1.8 1.4l5.2 3c.5.3 1.1.3 1.5 0l5.2-3c.5-.3.8-.8.8-1.4v-6.1c0-.6-.3-1.1-.8-1.4l-5.3-3z" fill="#8247E5"/>
@@ -33,7 +32,6 @@ const partners = [
   },
   {
     name: "Arbitrum",
-    color: "#28A0F0",
     logo: (
       <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
         <path d="M16.6 17.4l3.5 5.7 3.2-1.9-4.8-7.8-1.9 4zm7.8-1.6l-5-8.1c-.3-.4-.7-.7-1.2-.7h-1l6.2 10.1 2.4-1.4v-.1c0-.4-.1-.7-.4-1.1v.3z" fill="#28A0F0" opacity="0.6"/>
@@ -43,7 +41,6 @@ const partners = [
   },
   {
     name: "Avalanche",
-    color: "#E84142",
     logo: (
       <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
         <path d="M20.4 20.8h3.7c.4 0 .6-.1.8-.4.2-.3.2-.6 0-.9l-6.8-12c-.2-.3-.5-.5-.8-.5s-.6.2-.8.5l-2 3.5 3.9 6.8c.7 1.2 1.3 2.2 2 3z" fill="#E84142"/>
@@ -53,14 +50,12 @@ const partners = [
   },
   {
     name: "Wormhole",
-    color: "#FFFFFF",
     logo: (
       <Image src="/wormhole.png" alt="Wormhole" width={24} height={24} className="w-6 h-6 object-contain" />
     ),
   },
   {
     name: "Base",
-    color: "#0052FF",
     logo: (
       <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
         <circle cx="16" cy="16" r="12" fill="#0052FF" opacity="0.2"/>
@@ -70,7 +65,6 @@ const partners = [
   },
   {
     name: "Optimism",
-    color: "#FF0420",
     logo: (
       <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
         <circle cx="16" cy="16" r="12" fill="#FF0420" opacity="0.15"/>
@@ -83,11 +77,17 @@ const partners = [
 export default function Partners() {
   return (
     <section className="py-20 px-6">
-      <div className="max-w-6xl mx-auto">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+        className="max-w-6xl mx-auto"
+      >
         <h2 className="text-3xl sm:text-[40px] font-semibold tracking-tight leading-tight mb-2 text-white">
-          Supported by top teams.
+          Built on trusted infrastructure.
         </h2>
-        <p className="text-gray-400 text-base mb-10">From DeFi&apos;s largest projects to established CEXes.</p>
+        <p className="text-gray-400 text-base mb-10">Powered by the networks and protocols that secure billions.</p>
 
         <div className="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
           <div className="flex items-center gap-x-12 animate-marquee w-max">
@@ -99,7 +99,7 @@ export default function Partners() {
             ))}
           </div>
         </div>
-      </div>
+      </motion.div>
     </section>
   );
 }
