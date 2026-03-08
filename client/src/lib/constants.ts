@@ -1,5 +1,6 @@
 export const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
-export const SERVER = "http://localhost:8080";
+export const SERVER =
+  process.env.NEXT_PUBLIC_GHOST_API_URL || "http://localhost:8080";
 export const EXTERNAL_API = "https://convergence2026-token-api.cldev.cloud";
 export const VAULT_ADDRESS = "0xE588a6c73933BFD66Af9b4A07d48bcE59c0D2d13";
 export const CHAIN_ID = 11155111;
