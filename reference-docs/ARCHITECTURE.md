@@ -50,14 +50,14 @@
 
 ## Key Design Decisions
 
-| Dimension | Design | Why |
-|---|---|---|
-| Auction format | Discriminatory-price | Each lender earns their own rate. No gaming, no collusion. |
-| Bid visibility | Sealed (encrypted with CRE pubkey) | Rates hidden from server + other participants. Only CRE decrypts. |
-| Matching | Epoch-based batch | Borrows batched, sorted largest-K-first, matched against cheapest lends. Two-step accept/reject. |
-| Execution | CRE proposes, borrower confirms | CRE matches and proposes. Borrower has 5 min to accept/reject. Timeout = auto-accept. |
-| Pool structure | Global tick book | Lenders isolated — deposit at their rate, no awareness of borrowers. |
-| Borrower role | Submits borrow order with collateral | Accept/reject proposal. Reject = 5% collateral slashed, intent killed. |
+| Dimension      | Design                               | Why                                                                                              |
+| -------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Auction format | Discriminatory-price                 | Each lender earns their own rate. No gaming, no collusion.                                       |
+| Bid visibility | Sealed (encrypted with CRE pubkey)   | Rates hidden from server + other participants. Only CRE decrypts.                                |
+| Matching       | Epoch-based batch                    | Borrows batched, sorted largest-K-first, matched against cheapest lends. Two-step accept/reject. |
+| Execution      | CRE proposes, borrower confirms      | CRE matches and proposes. Borrower has 5 min to accept/reject. Timeout = auto-accept.            |
+| Pool structure | Global tick book                     | Lenders isolated — deposit at their rate, no awareness of borrowers.                             |
+| Borrower role  | Submits borrow order with collateral | Accept/reject proposal. Reject = 5% collateral slashed, intent killed.                           |
 
 ---
 
@@ -92,41 +92,45 @@ CRE keypair is secp256k1 (eciesjs). Server serves the public key. Only CRE has t
 
 **User actions: 3 sigs first time, 2 returning**
 
-| Step | Action | Sig? |
-|------|--------|------|
-| Approve vault | ERC20 approve (one-time) | On-chain tx |
-| Deposit to vault | vault.deposit() | On-chain tx |
-| Init | POST /deposit-lend/init { account, token, amount } — no auth | None |
-| Private transfer | Transfer to shielded address (external API) | EIP-712 |
-| Confirm | POST /deposit-lend/confirm { encryptedRate } | EIP-712 |
+| Step             | Action                                                       | Sig?        |
+| ---------------- | ------------------------------------------------------------ | ----------- |
+| Approve vault    | ERC20 approve (one-time)                                     | On-chain tx |
+| Deposit to vault | vault.deposit()                                              | On-chain tx |
+| Init             | POST /deposit-lend/init { account, token, amount } — no auth | None        |
+| Private transfer | Transfer to shielded address (external API)                  | EIP-712     |
+| Confirm          | POST /deposit-lend/confirm { encryptedRate }                 | EIP-712     |
 
 After confirm, lender's funds sit in the global tick book at their encrypted rate. Withdrawable anytime until matched.
 
 **Cancel (pre-match): 1 sig**
+
 - POST /cancel-lend → pool transfers funds back to user's vault via private-transfer
 
 ### Borrower Flow
 
 **User actions: collateral deposit + submit + accept/reject**
 
-| Step | Action | Sig? |
-|------|--------|------|
-| Post collateral | Private-transfer collateral to pool | EIP-712 |
-| Submit borrow | POST /borrow-intent { K, maxRate (encrypted), token, collateral } | EIP-712 |
-| Accept/Reject | POST /accept-proposal or /reject-proposal | EIP-712 |
+| Step            | Action                                                            | Sig?    |
+| --------------- | ----------------------------------------------------------------- | ------- |
+| Post collateral | Private-transfer collateral to pool                               | EIP-712 |
+| Submit borrow   | POST /borrow-intent { K, maxRate (encrypted), token, collateral } | EIP-712 |
+| Accept/Reject   | POST /accept-proposal or /reject-proposal                         | EIP-712 |
 
 **Epoch matching (CRE cron):**
+
 1. CRE pulls all pending borrows + active lends
 2. Sorts borrows largest-K-first, lends cheapest-rate-first
 3. For each borrow: fills from cheapest lends until K reached, only if blended rate ≤ maxRate
 4. Locks matched lend ticks, pushes proposals to server
 
 **Between epochs (borrower action window — 5 min):**
+
 - **Accept** → loan created, principal disbursed, lend ticks consumed
 - **Reject** → 5% collateral slashed (stays in pool), 95% returned, intent killed, lend ticks freed for next epoch
 - **No response (timeout)** → auto-accepted after 5 min
 
 **If insufficient liquidity:**
+
 - Borrow intent stays pending until next epoch
 
 ### Matching Engine (inside CRE — epoch-based)
@@ -246,27 +250,27 @@ Hono + Bun. Dumb storage layer. Cannot decrypt rates.
 
 ### User-Facing Routes
 
-| Route | Auth | What it does |
-|---|---|---|
-| `POST /deposit-lend/init` | None | Generate shielded address, create pending deposit slot |
+| Route                        | Auth    | What it does                                                           |
+| ---------------------------- | ------- | ---------------------------------------------------------------------- |
+| `POST /deposit-lend/init`    | None    | Generate shielded address, create pending deposit slot                 |
 | `POST /deposit-lend/confirm` | EIP-712 | Store encrypted rate, credit internal balance, add to global tick book |
-| `POST /cancel-lend` | EIP-712 | Pool transfers funds back to user, remove intent |
-| `POST /borrow-intent` | EIP-712 | Store encrypted borrow order with collateral refs |
-| `POST /cancel-borrow` | EIP-712 | Cancel pending borrow intent, return collateral |
-| `POST /accept-proposal` | EIP-712 | Accept match proposal → create loan, disburse principal |
-| `POST /reject-proposal` | EIP-712 | Reject proposal → 5% slash, 95% returned, lend ticks freed |
-| `POST /repay` | EIP-712 | Full repay, credit lenders at discriminatory rates, release collateral |
-| `GET /health` | None | Status + pool address |
-| `GET /cre-public-key` | None | eciesjs secp256k1 public key for rate encryption |
+| `POST /cancel-lend`          | EIP-712 | Pool transfers funds back to user, remove intent                       |
+| `POST /borrow-intent`        | EIP-712 | Store encrypted borrow order with collateral refs                      |
+| `POST /cancel-borrow`        | EIP-712 | Cancel pending borrow intent, return collateral                        |
+| `POST /accept-proposal`      | EIP-712 | Accept match proposal → create loan, disburse principal                |
+| `POST /reject-proposal`      | EIP-712 | Reject proposal → 5% slash, 95% returned, lend ticks freed             |
+| `POST /repay`                | EIP-712 | Full repay, credit lenders at discriminatory rates, release collateral |
+| `GET /health`                | None    | Status + pool address                                                  |
+| `GET /cre-public-key`        | None    | eciesjs secp256k1 public key for rate encryption                       |
 
 ### Internal Routes (called by CRE)
 
-| Route | What it does |
-|---|---|
-| `GET /internal/pending-intents` | CRE pulls active lends (not locked) + pending borrows |
-| `POST /internal/record-match-proposals` | CRE pushes batch of match proposals after epoch |
-| `POST /internal/expire-proposals` | Auto-accept proposals past 5 min deadline |
-| `POST /internal/check-loans` | Returns active loans for liquidation check |
+| Route                                   | What it does                                          |
+| --------------------------------------- | ----------------------------------------------------- |
+| `GET /internal/pending-intents`         | CRE pulls active lends (not locked) + pending borrows |
+| `POST /internal/record-match-proposals` | CRE pushes batch of match proposals after epoch       |
+| `POST /internal/expire-proposals`       | Auto-accept proposals past 5 min deadline             |
+| `POST /internal/check-loans`            | Returns active loans for liquidation check            |
 
 ---
 
@@ -315,16 +319,16 @@ CronTrigger (every 60s)
 
 ## Privacy Model
 
-| Data | On-Chain (Public) | GHOST Server | CRE |
-|---|---|---|---|
-| Vault deposits | Visible | — | — |
-| Private transfers | Hidden | Known | Known |
-| GHOST balances | Hidden | Tracked | — |
-| Lender rates | Hidden | Encrypted blob | **Decrypted** |
-| Borrower max rate | Hidden | Encrypted blob | **Decrypted** |
-| Who lent to whom | Hidden | Recorded post-match | Known at match |
-| Loan terms | Hidden | Recorded | Known |
-| Liquidation | Hidden | Updated by CRE | Detected + executed |
+| Data              | On-Chain (Public) | GHOST Server        | CRE                 |
+| ----------------- | ----------------- | ------------------- | ------------------- |
+| Vault deposits    | Visible           | —                   | —                   |
+| Private transfers | Hidden            | Known               | Known               |
+| GHOST balances    | Hidden            | Tracked             | —                   |
+| Lender rates      | Hidden            | Encrypted blob      | **Decrypted**       |
+| Borrower max rate | Hidden            | Encrypted blob      | **Decrypted**       |
+| Who lent to whom  | Hidden            | Recorded post-match | Known at match      |
+| Loan terms        | Hidden            | Recorded            | Known               |
+| Liquidation       | Hidden            | Updated by CRE      | Detected + executed |
 
 **Key insight**: The server never sees plaintext rates. It stores encrypted blobs and executes fund movements. All rate logic lives inside CRE's confidential compute boundary.
 
@@ -335,76 +339,76 @@ CronTrigger (every 60s)
 ```typescript
 // Global lend tick book (rates encrypted, only CRE reads plaintext)
 interface LendIntent {
-  intentId: string
-  userId: string
-  token: string
-  amount: bigint
-  encryptedRate: string        // eciesjs ciphertext, opaque to server
-  shieldedAddress: string
-  status: 'active' | 'matched' | 'cancelled'
-  createdAt: number
+  intentId: string;
+  userId: string;
+  token: string;
+  amount: bigint;
+  encryptedRate: string; // eciesjs ciphertext, opaque to server
+  shieldedAddress: string;
+  status: "active" | "matched" | "cancelled";
+  createdAt: number;
 }
 
 // Borrow orders
 interface BorrowIntent {
-  intentId: string
-  borrower: string
-  token: string
-  amount: bigint               // K — target loan amount
-  encryptedMaxRate: string     // eciesjs ciphertext
-  collateralToken: string
-  collateralAmount: bigint
-  status: 'pending' | 'proposed' | 'matched' | 'cancelled' | 'rejected'
-  createdAt: number
+  intentId: string;
+  borrower: string;
+  token: string;
+  amount: bigint; // K — target loan amount
+  encryptedMaxRate: string; // eciesjs ciphertext
+  collateralToken: string;
+  collateralAmount: bigint;
+  status: "pending" | "proposed" | "matched" | "cancelled" | "rejected";
+  createdAt: number;
 }
 
 // Match proposal (CRE creates after epoch matching, borrower accepts/rejects)
 interface MatchProposal {
-  proposalId: string
-  borrowIntentId: string
-  borrower: string
-  token: string
-  principal: bigint
-  matchedTicks: MatchedTick[]
-  effectiveBorrowerRate: number
-  collateralToken: string
-  collateralAmount: bigint
-  status: 'pending' | 'accepted' | 'rejected' | 'expired'
-  createdAt: number
-  expiresAt: number            // createdAt + 5 min
+  proposalId: string;
+  borrowIntentId: string;
+  borrower: string;
+  token: string;
+  principal: bigint;
+  matchedTicks: MatchedTick[];
+  effectiveBorrowerRate: number;
+  collateralToken: string;
+  collateralAmount: bigint;
+  status: "pending" | "accepted" | "rejected" | "expired";
+  createdAt: number;
+  expiresAt: number; // createdAt + 5 min
 }
 
 // Loan (created on proposal accept or timeout auto-accept)
 interface Loan {
-  loanId: string
-  borrower: string
-  token: string
-  principal: bigint
-  matchedTicks: MatchedTick[]  // discriminatory: each lender's rate preserved
-  effectiveBorrowerRate: number
-  collateralToken: string
-  collateralAmount: bigint
-  maturity: number
-  status: 'active' | 'repaid' | 'defaulted'
-  repaidAmount: bigint
+  loanId: string;
+  borrower: string;
+  token: string;
+  principal: bigint;
+  matchedTicks: MatchedTick[]; // discriminatory: each lender's rate preserved
+  effectiveBorrowerRate: number;
+  collateralToken: string;
+  collateralAmount: bigint;
+  maturity: number;
+  status: "active" | "repaid" | "defaulted";
+  repaidAmount: bigint;
 }
 
 interface MatchedTick {
-  lender: string
-  lendIntentId: string
-  amount: bigint
-  rate: number                 // plaintext, written by CRE post-match
+  lender: string;
+  lendIntentId: string;
+  amount: bigint;
+  rate: number; // plaintext, written by CRE post-match
 }
 
 // Deposit slot (shielded address lifecycle)
 interface DepositSlot {
-  shieldedAddress: string
-  userId: string
-  token: string
-  amount: bigint
-  status: 'pending' | 'confirmed' | 'cancelled'
-  encryptedRate?: string
-  createdAt: number            // 10min TTL for pending slots
+  shieldedAddress: string;
+  userId: string;
+  token: string;
+  amount: bigint;
+  status: "pending" | "confirmed" | "cancelled";
+  encryptedRate?: string;
+  createdAt: number; // 10min TTL for pending slots
 }
 ```
 
@@ -412,12 +416,12 @@ interface DepositSlot {
 
 ## Chainlink Services Used
 
-| Service | How GHOST Uses It |
-|---|---|
-| **CRE Workflows** | Matching (continuous), liquidation monitoring (60s cron) |
-| **CRE ConfidentialHTTPClient** | All CRE↔server and CRE↔external API calls encrypted end-to-end |
-| **CRE Vault DON Secrets** | CRE eciesjs private key as threshold-encrypted secret |
-| **ACE (PolicyEngine)** | Compliance check on token deposits to external vault |
+| Service                            | How GHOST Uses It                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| **CRE Workflows**                  | Matching (continuous), liquidation monitoring (60s cron)                 |
+| **CRE ConfidentialHTTPClient**     | All CRE↔server and CRE↔external API calls encrypted end-to-end         |
+| **CRE Vault DON Secrets**          | CRE eciesjs private key as threshold-encrypted secret                    |
+| **ACE (PolicyEngine)**             | Compliance check on token deposits to external vault                     |
 | **Compliant Private Transfer API** | Base layer: private transfers, balances, withdrawals, shielded addresses |
 
 ---
@@ -426,23 +430,23 @@ interface DepositSlot {
 
 ### GHOST Server (`server/.env`)
 
-| Var | Description |
-|---|---|
-| `POOL_PRIVATE_KEY` | Pool wallet private key (required) |
-| `TOKEN_ADDRESS` | Deployed token address (required) |
-| `CRE_PUBLIC_KEY` | eciesjs secp256k1 public key for rate encryption (required) |
-| `EXTERNAL_API_URL` | External API base URL (default: convergence2026-token-api.cldev.cloud) |
-| `EXTERNAL_VAULT_ADDRESS` | External vault contract (default: 0xE588...) |
-| `CHAIN_ID` | Chain ID (default: 11155111) |
-| `PORT` | Server port (default: 3000) |
-| `INTERNAL_API_KEY` | API key for CRE internal routes (optional) |
+| Var                      | Description                                                            |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `POOL_PRIVATE_KEY`       | Pool wallet private key (required)                                     |
+| `TOKEN_ADDRESS`          | Deployed token address (required)                                      |
+| `CRE_PUBLIC_KEY`         | eciesjs secp256k1 public key for rate encryption (required)            |
+| `EXTERNAL_API_URL`       | External API base URL (default: convergence2026-token-api.cldev.cloud) |
+| `EXTERNAL_VAULT_ADDRESS` | External vault contract (default: 0xE588...)                           |
+| `CHAIN_ID`               | Chain ID (default: 11155111)                                           |
+| `PORT`                   | Server port (default: 3000)                                            |
+| `INTERNAL_API_KEY`       | API key for CRE internal routes (optional)                             |
 
 ### CRE Secrets (Vault DON)
 
-| Secret | Description |
-|---|---|
-| `CRE_PRIVATE_KEY` | eciesjs secp256k1 private key for decrypting sealed rates |
-| `POOL_PRIVATE_KEY` | Pool wallet key for executing transfers |
+| Secret             | Description                                               |
+| ------------------ | --------------------------------------------------------- |
+| `CRE_PRIVATE_KEY`  | eciesjs secp256k1 private key for decrypting sealed rates |
+| `POOL_PRIVATE_KEY` | Pool wallet key for executing transfers                   |
 
 ---
 
