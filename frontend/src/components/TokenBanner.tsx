@@ -28,10 +28,10 @@ export default function TokenBanner() {
               Privacy-preserving tokens powering Ghost Protocol. Lend and borrow gUSD, use gETH as collateral — all through shielded transfers.
             </p>
             <div>
-              <button className="inline-flex items-center gap-2.5 px-7 py-3.5 text-gray-900 text-sm font-semibold rounded-full hover:opacity-90 transition-all hover:-translate-y-0.5 active:translate-y-0" style={{ backgroundColor: "#e2a9f1" }}>
+              <a href="https://docs.ghost-finance.xyz/protocol/tokenomics" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2.5 px-7 py-3.5 text-gray-900 text-sm font-semibold rounded-full hover:opacity-90 transition-all hover:-translate-y-0.5 active:translate-y-0" style={{ backgroundColor: "#e2a9f1" }}>
                 Learn more
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </a>
             </div>
           </div>
         </div>

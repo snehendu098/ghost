@@ -11,6 +11,7 @@ const features = [
     thumbnail: "/thumbnail1.png",
     visualBg: "bg-[#161616]",
     hoverBg: "group-hover:bg-[#e2a9f1]",
+    link: "https://docs.ghost-finance.xyz/protocol/privacy-model"
   },
   {
 
@@ -19,6 +20,7 @@ const features = [
     thumbnail: "/thumbnail2.png",
     visualBg: "bg-[#161616]",
     hoverBg: "group-hover:bg-[#f5c882]",
+    link: "https://docs.ghost-finance.xyz/protocol/trust-model"
   },
   {
 
@@ -27,14 +29,16 @@ const features = [
     thumbnail: "/thumbnail3.png",
     visualBg: "bg-[#161616]",
     hoverBg: "group-hover:bg-[#a5b4fc]",
+    link: "https://docs.ghost-finance.xyz/cre-workflows/overview"
   },
   {
 
-    title: "Shielded Transfers",
-    desc: "All fund movements use Chainlink's Compliant Private Transfer vault. Private by default, compliant by design.",
+    title: "On-Chain Credit Tiers",
+    desc: "Build reputation from Bronze to Platinum. Higher tiers mean lower collateral.",
     thumbnail: "/thumbnail4.png",
     visualBg: "bg-[#161616]",
     hoverBg: "group-hover:bg-[#c4b5fd]",
+    link: "https://docs.ghost-finance.xyz/incentives/credit-tiers"
   },
 ];
 
@@ -56,15 +60,18 @@ export default function Features() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-          className="text-gray-400 mb-14 max-w-lg text-base leading-relaxed"
+          className="text-gray-400 mb-14 max-w-lg text-sm leading-relaxed"
         >
           Sealed-bid auctions, confidential compute matching, and private transfers — built on Chainlink.
         </motion.p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {features.map((f, i) => (
-            <motion.div
+            <motion.a
               key={f.title}
+              href={f.link}
+              target="_blank"
+              rel="noopener noreferrer"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
@@ -90,7 +97,7 @@ export default function Features() {
                 </div>
                 <p className="text-sm text-gray-400 leading-relaxed">{f.desc}</p>
               </div>
-            </motion.div>
+            </motion.a>
           ))}
         </div>
       </div>

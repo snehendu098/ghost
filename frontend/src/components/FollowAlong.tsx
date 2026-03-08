@@ -1,6 +1,7 @@
 "use client";
-import { ArrowUpRight, FileText, Bell } from "lucide-react";
+import { ArrowUpRight, FileText, BookOpen, Send } from "lucide-react";
 import { motion } from "framer-motion";
+import { links } from "@/constants/links";
 
 export default function FollowAlong() {
   return (
@@ -36,7 +37,7 @@ export default function FollowAlong() {
           </motion.a>
 
           <motion.a
-            href="#"
+            href="https://docs.ghost-finance.xyz/"
             target="_blank"
             rel="noopener noreferrer"
             initial={{ opacity: 0, y: 30 }}
@@ -47,7 +48,7 @@ export default function FollowAlong() {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <Bell className="w-5 h-5 text-gray-400" />
+                <BookOpen className="w-5 h-5 text-gray-400" />
                 <h4 className="font-semibold text-white text-base">Developer docs</h4>
               </div>
               <ArrowUpRight className="w-4.5 h-4.5 text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
@@ -56,8 +57,8 @@ export default function FollowAlong() {
           </motion.a>
         </div>
 
-        {/* Bottom row: X + Discord (equal width) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Bottom row: X + Discord + Telegram */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <motion.a
             href="https://x.com/_ghostfi"
             target="_blank"
@@ -79,7 +80,7 @@ export default function FollowAlong() {
           </motion.a>
 
           <motion.a
-            href="https://discord.gg/JyYbQECkyZ"
+            href={links.discord}
             target="_blank"
             rel="noopener noreferrer"
             initial={{ opacity: 0, y: 30 }}
@@ -96,6 +97,26 @@ export default function FollowAlong() {
               <ArrowUpRight className="w-4.5 h-4.5 text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
             </div>
             <p className="text-sm text-gray-400 leading-relaxed mt-auto pt-8">Join the community — discuss rate strategies, integrations, and governance.</p>
+          </motion.a>
+
+          <motion.a
+            href={links.telegram}
+            target="_blank"
+            rel="noopener noreferrer"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5, delay: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+            className="flex flex-col justify-between p-7 rounded-2xl bg-[#161616] border border-white/[0.04] transition-all hover:border-white/[0.1] group min-h-[150px]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Send className="w-5 h-5 text-gray-400" />
+                <h4 className="font-semibold text-white text-base">Telegram</h4>
+              </div>
+              <ArrowUpRight className="w-4.5 h-4.5 text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
+            </div>
+            <p className="text-sm text-gray-400 leading-relaxed mt-auto pt-8">Access Ghost directly via our Telegram bot.</p>
           </motion.a>
         </div>
       </div>

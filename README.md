@@ -1,4 +1,4 @@
-Ghost Finance
+# Ghost Finance
 
 **Privacy preserving peer to peer lending with sealed bid rate discovery on Chainlink CRE.**
 

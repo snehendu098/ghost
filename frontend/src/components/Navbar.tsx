@@ -12,37 +12,37 @@ const products = [
   {
     category: "Individuals",
     items: [
-      { name: "Lend", desc: "Deposit at your own sealed rate. Earn discriminatory yield.", colors: ["#a78bfa", "#7c3aed", "#c4b5fd"] },
-      { name: "Borrow", desc: "Post collateral, set your max rate, get matched to cheapest lenders.", colors: ["#818cf8", "#4f46e5", "#a5b4fc"] },
+      { name: "Lend", desc: "Deposit at your own sealed rate. Earn discriminatory yield.", colors: ["#a78bfa", "#7c3aed", "#c4b5fd"], link: links.lend },
+      { name: "Borrow", desc: "Post collateral, set your max rate, get matched to cheapest lenders.", colors: ["#818cf8", "#4f46e5", "#a5b4fc"], link: links.borrow },
     ],
   },
   {
     category: "Tools",
     items: [
-      { name: "Raycast Extension (Cooming Soon)", desc: "Use Ghost's confidential matching engine from Raycast.", colors: ["#67e8f9", "#0891b2", "#a5f3fc"] },
-      { name: "Telegram Bot", desc: "Access all of Ghost's features via Telegram.", colors: ["#86efac", "#16a34a", "#bbf7d0"] },
+      { name: "Raycast Extension", desc: "Use Ghost's confidential matching engine from Raycast.", colors: ["#67e8f9", "#0891b2", "#a5f3fc"], link: links.raycast },
+      { name: "Telegram Bot", desc: "Access all of Ghost's features via Telegram.", colors: ["#86efac", "#16a34a", "#bbf7d0"], link: links.telegram },
     ],
   },
   {
     category: "Institutions & Projects",
     items: [
-      { name: "Private Pools", desc: "Institutional-grade private lending pools with custom parameters.", colors: ["#f0abfc", "#a855f7", "#e9d5ff"] },
+      { name: "Private Pools", desc: "Institutional-grade private lending pools with custom parameters.", colors: ["#f0abfc", "#a855f7", "#e9d5ff"], link: "https://app.ghost-finance.xyz/explore" },
     ],
   },
 ];
 
 const resources = [
-  { name: "Blog", desc: "Protocol updates and research insights.", colors: ["#fbbf24", "#d97706", "#fde68a"] },
-  { name: "Documentation", desc: "Protocol architecture & integration guides.", colors: ["#a78bfa", "#7c3aed", "#c4b5fd"] },
-  { name: "Litepaper", desc: "Read the Ghost protocol litepaper.", colors: ["#f472b6", "#db2777", "#fbcfe8"] },
+  { name: "Blog", desc: "Protocol updates and research insights.", colors: ["#fbbf24", "#d97706", "#fde68a"], link: links.blog },
+  { name: "Documentation", desc: "Protocol architecture & integration guides.", colors: ["#a78bfa", "#7c3aed", "#c4b5fd"], link: links.docs },
+  { name: "Litepaper", desc: "Read the Ghost protocol litepaper.", colors: ["#f472b6", "#db2777", "#fbcfe8"], link: links.litepaper },
 ];
 
 const tokens = [
-  { name: "$gUSD", desc: "Privacy-preserving stablecoin for lending and borrowing.", colors: ["#34d399", "#059669", "#a7f3d0"] },
-  { name: "$gETH", desc: "Shielded ETH for collateral and private transfers.", colors: ["#60a5fa", "#2563eb", "#bfdbfe"] },
+  { name: "$gUSD", desc: "Privacy-preserving stablecoin for lending and borrowing.", colors: ["#34d399", "#059669", "#a7f3d0"], link: links.tokenomics },
+  { name: "$gETH", desc: "Shielded ETH for collateral and private transfers.", colors: ["#60a5fa", "#2563eb", "#bfdbfe"], link: links.tokenomics },
 ];
 
-type MenuItem = { name: string; desc: string; badge?: string; colors: string[] };
+type MenuItem = { name: string; desc: string; badge?: string; colors: string[]; link: string };
 
 const tabs = ["Products", "Resources", "Tokens"] as const;
 type Tab = (typeof tabs)[number];
@@ -112,7 +112,9 @@ function NavItem({
 }) {
   return (
     <a
-      href="#"
+      href={item.link}
+      target="_blank"
+      rel="noopener noreferrer"
       className="relative flex items-center justify-between px-4 py-3 rounded-xl group"
       onMouseEnter={onHover}
     >
